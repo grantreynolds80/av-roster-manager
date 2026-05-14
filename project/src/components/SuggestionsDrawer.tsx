@@ -9,14 +9,15 @@ interface SuggestionsDrawerProps {
   meeting: Meeting | null
   meetings: Meeting[]
   people: Person[]
+  cooldownDays: number
   onClose: () => void
   onAssign: (role: string, personId: string) => void
 }
 
-export function SuggestionsDrawer({ open, meeting, meetings, people, onClose, onAssign }: SuggestionsDrawerProps) {
+export function SuggestionsDrawer({ open, meeting, meetings, people, cooldownDays, onClose, onAssign }: SuggestionsDrawerProps) {
   const suggestions = useMemo(
-    () => meeting ? getSuggestions(meetings, people, meeting) : [],
-    [meetings, people, meeting]
+    () => meeting ? getSuggestions(meetings, people, meeting, cooldownDays) : [],
+    [meetings, people, meeting, cooldownDays]
   )
 
   if (!meeting) return null
@@ -39,7 +40,7 @@ export function SuggestionsDrawer({ open, meeting, meetings, people, onClose, on
                 <p className="text-sm text-muted-foreground">No eligible people</p>
               ) : (
                 <div className="space-y-1.5">
-                  {people.map(({ person, daysSinceLast }, i) => (
+                  {people.map(({ person, daysSinceLast, cooldown }, i) => (
                     <button
                       key={person.id}
                       onClick={() => onAssign(role, person.id)}
@@ -48,6 +49,9 @@ export function SuggestionsDrawer({ open, meeting, meetings, people, onClose, on
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-medium text-muted-foreground w-4">{i + 1}.</span>
                         <span className="text-sm font-medium">{person.name}</span>
+                        {cooldown === 'amber' && (
+                          <span className="text-[10px] text-amber-600 dark:text-amber-400 border border-amber-300 dark:border-amber-700 rounded px-1 leading-4">cooldown</span>
+                        )}
                       </div>
                       <span className="text-xs text-muted-foreground">
                         {daysSinceLast === Infinity ? 'Never assigned' : `${daysSinceLast}d ago`}

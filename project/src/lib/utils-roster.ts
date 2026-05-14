@@ -212,13 +212,14 @@ export function computeStats(meetings: Meeting[], people: Person[]): PersonStats
 // Suggest best people for each AV role
 export interface RoleSuggestion {
   role: AvRole
-  suggestions: Array<{ person: Person; daysSinceLast: number }>
+  suggestions: Array<{ person: Person; daysSinceLast: number; cooldown: 'amber' | null }>
 }
 
 export function getSuggestions(
   meetings: Meeting[],
   people: Person[],
-  targetMeeting: Meeting
+  targetMeeting: Meeting,
+  cooldownDays: number
 ): RoleSuggestion[] {
   const assignedInMeeting = getAllAssignedIds(targetMeeting)
   const meetingDate = parseISO(targetMeeting.date)
@@ -228,12 +229,14 @@ export function getSuggestions(
   return roles.map(role => {
     const eligible = people.filter(p =>
       p[role] &&
-      p.availability_status === 'Available' &&
+      !isPersonCurrentlyUnavailable(p) &&
       !assignedInMeeting.has(p.id)
     )
 
-    const ranked = eligible.map(person => {
-      // Find last actual assignment in this role
+    const candidates = eligible.map(person => {
+      const cooldownLevel = checkCooldown(meetings, targetMeeting, person.id, role, cooldownDays).level
+
+      // daysSinceLast: last completed assignment in this specific role
       let daysSinceLast = Infinity
       for (const m of meetings) {
         if (m.status !== 'Completed') continue
@@ -245,17 +248,25 @@ export function getSuggestions(
           if (d < daysSinceLast) daysSinceLast = d
         }
       }
-      return { person, daysSinceLast }
+
+      return { person, daysSinceLast, cooldown: cooldownLevel as 'amber' | null }
     })
 
-    ranked.sort((a, b) => {
+    // Exclude anyone with a red cooldown (assigned to any role within 7 days)
+    const nonRed = candidates.filter(c => c.cooldown !== 'red')
+
+    // Sort: no-cooldown first, then amber — within each tier by most overdue (Infinity = never, goes first)
+    nonRed.sort((a, b) => {
+      if (a.cooldown !== b.cooldown) {
+        return a.cooldown === null ? -1 : 1
+      }
       if (a.daysSinceLast === Infinity && b.daysSinceLast === Infinity) return 0
       if (a.daysSinceLast === Infinity) return -1
       if (b.daysSinceLast === Infinity) return 1
       return b.daysSinceLast - a.daysSinceLast
     })
 
-    return { role, suggestions: ranked.slice(0, 3) }
+    return { role, suggestions: nonRed.slice(0, 3) }
   })
 }
 

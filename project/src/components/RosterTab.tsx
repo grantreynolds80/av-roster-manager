@@ -624,6 +624,7 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
         meeting={suggestionsMeeting}
         meetings={meetings}
         people={people}
+        cooldownDays={cooldownDays}
         onClose={() => setSuggestionsMeeting(null)}
         onAssign={handleSuggestionsAssign}
       />
