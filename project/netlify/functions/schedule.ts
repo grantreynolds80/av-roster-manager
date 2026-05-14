@@ -1,6 +1,8 @@
 import { neon } from '@netlify/neon'
 
-const sql = neon(process.env.NETLIFY_DATABASE_URL!)
+const dbUrl = process.env.NETLIFY_DATABASE_URL ?? process.env.DATABASE_URL
+if (!dbUrl) throw new Error('No database URL found. Set NETLIFY_DATABASE_URL in site environment variables.')
+const sql = neon(dbUrl)
 
 async function ensureTable() {
   await sql`
