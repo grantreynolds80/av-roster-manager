@@ -243,12 +243,9 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
     return 'default'
   }
 
-  const getCooldownClass = (meeting: Meeting, role: AvRole, personId?: string) => {
-    if (!personId) return ''
-    const result = checkCooldown(meetings, meeting, personId, role, cooldownDays)
-    if (result.level === 'red') return 'border-l-2 border-red-400'
-    if (result.level === 'amber') return 'border-l-2 border-amber-300/70'
-    return ''
+  const getCooldownLevel = (meeting: Meeting, role: AvRole, personId?: string): 'red' | 'amber' | null => {
+    if (!personId || meeting.status !== 'Planned') return null
+    return checkCooldown(meetings, meeting, personId, role, cooldownDays).level
   }
 
   const conflictMeeting = conflictPending ? meetings.find(m => m.id === conflictPending.meetingId) : null
@@ -317,7 +314,9 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                   {/* AV roles */}
                   {AV_ROLES.map(role => {
                     const currentId = meeting.planned[role]
-                    const cooldownClass = getCooldownClass(meeting, role, currentId)
+                    const cdLevel = getCooldownLevel(meeting, role, currentId)
+                    const cellBg = cdLevel === 'red' ? 'bg-red-50 dark:bg-red-950/30' : cdLevel === 'amber' ? 'bg-amber-50 dark:bg-amber-950/20' : ''
+                    const triggerBg = cdLevel === 'red' ? 'bg-red-100/60 dark:bg-red-900/30' : cdLevel === 'amber' ? 'bg-amber-100/60 dark:bg-amber-900/20' : ''
                     const eligible = getPeopleForRole(people, role)
 
                     if (role === 'backup' && !meeting.backupRequired && meeting.status !== 'Completed') {
@@ -336,7 +335,7 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                     }
 
                     return (
-                      <div key={role} className={`grid grid-cols-2 gap-2 items-center rounded p-1 ${cooldownClass}`}>
+                      <div key={role} className={`grid grid-cols-2 gap-2 items-center rounded p-1 ${cellBg}`}>
                         <span className="text-xs font-medium text-muted-foreground">{ROLE_LABELS[role]}</span>
                         {meeting.status === 'Completed' ? (
                           <span className="text-sm">{getPersonName(people, meeting.completions[role]?.actual || meeting.planned[role]) || '—'}</span>
@@ -347,7 +346,7 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                               onValueChange={v => handleRoleAssign(meeting.id, role, v === '__none__' ? '' : v)}
                               disabled={meeting.status === 'Cancelled'}
                             >
-                              <SelectTrigger className="h-8 text-xs flex-1">
+                              <SelectTrigger className={`h-8 text-xs flex-1 ${triggerBg}`}>
                                 <SelectValue placeholder="Assign..." />
                               </SelectTrigger>
                               <SelectContent>
@@ -473,7 +472,9 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                 </td>
                 {AV_ROLES.map(role => {
                   const currentId = meeting.planned[role]
-                  const cooldownClass = getCooldownClass(meeting, role, currentId)
+                  const cdLevel = getCooldownLevel(meeting, role, currentId)
+                  const cellBg = cdLevel === 'red' ? 'bg-red-50 dark:bg-red-950/30' : cdLevel === 'amber' ? 'bg-amber-50 dark:bg-amber-950/20' : ''
+                  const triggerBg = cdLevel === 'red' ? 'bg-red-100/60 dark:bg-red-900/30' : cdLevel === 'amber' ? 'bg-amber-100/60 dark:bg-amber-900/20' : 'bg-transparent'
                   const eligible = getPeopleForRole(people, role)
 
                   if (role === 'backup' && !meeting.backupRequired && meeting.status !== 'Completed') {
@@ -490,7 +491,7 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                   }
 
                   return (
-                    <td key={role} className={`p-1 ${cooldownClass}`}>
+                    <td key={role} className={`p-1 ${cellBg}`}>
                       {meeting.status === 'Completed' ? (
                         <span className={`text-sm px-1 ${getPersonName(people, meeting.completions[role]?.actual || meeting.planned[role]) ? 'font-medium' : 'text-muted-foreground/40'}`}>
                           {getPersonName(people, meeting.completions[role]?.actual || meeting.planned[role]) || '—'}
@@ -502,7 +503,7 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                             onValueChange={v => handleRoleAssign(meeting.id, role, v === '__none__' ? '' : v)}
                             disabled={meeting.status === 'Cancelled'}
                           >
-                            <SelectTrigger className={`h-7 text-xs border-0 shadow-none focus:ring-0 bg-transparent flex-1 min-w-0 ${currentId ? 'font-medium' : 'text-muted-foreground/40'}`}>
+                            <SelectTrigger className={`h-7 text-xs border-0 shadow-none focus:ring-0 ${triggerBg} flex-1 min-w-0 ${currentId ? 'font-medium' : 'text-muted-foreground/40'}`}>
                               <SelectValue placeholder="—" />
                             </SelectTrigger>
                             <SelectContent>

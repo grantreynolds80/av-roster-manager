@@ -74,7 +74,6 @@ export function countUnfilledRoles(meeting: Meeting): number {
   return roles.filter(r => !meeting.planned[r]).length
 }
 
-// Cooldown check — based on actual completions only (no-shows don't count)
 export interface CooldownResult {
   level: 'red' | 'amber' | null
   reason?: string
@@ -89,34 +88,41 @@ export function checkCooldown(
 ): CooldownResult {
   const meetingDate = parseISO(meeting.date)
 
+  // Returns true if personId has an effective assignment in role r for meeting m.
+  // Completed → use actual (fill-ins count, no-shows don't because actual ≠ planned person).
+  // Planned   → use planned assignments.
+  // Backup    → only counts when backupRequired is true.
+  const isAssigned = (m: Meeting, r: AvRole): boolean => {
+    if (r === 'backup' && !m.backupRequired) return false
+    if (m.status === 'Completed') {
+      const c = m.completions[r]
+      return !!(c && c.actual === personId)
+    }
+    return m.planned[r] === personId
+  }
+
+  let hasAmber = false
+
   for (const m of meetings) {
-    if (m.id === meeting.id) continue
-    if (m.status !== 'Completed') continue
+    if (m.id === meeting.id || m.status === 'Cancelled') continue
 
-    const mDate = parseISO(m.date)
-    const daysDiff = Math.abs(differenceInDays(meetingDate, mDate))
+    const daysDiff = Math.abs(differenceInDays(meetingDate, parseISO(m.date)))
+    if (daysDiff > cooldownDays) continue
 
-    // Red: same role within 7 days (actual only — no-shows don't count)
-    if (daysDiff <= 7) {
-      const c = m.completions[role]
-      if (c && c.actual === personId) {
-        return { level: 'red', reason: 'Same role within 7 days' }
-      }
+    // Red: same role within 7 days (bidirectional)
+    if (daysDiff <= 7 && isAssigned(m, role)) {
+      return { level: 'red', reason: 'Same role within 7 days' }
     }
 
-    // Amber: any AV role within cooldown days (actual only)
-    if (daysDiff <= cooldownDays) {
-      const inAv = AV_ROLES.some(r => {
-        const c = m.completions[r]
-        return c && c.actual === personId
-      })
-      if (inAv) {
-        return { level: 'amber', reason: `Assigned within ${cooldownDays} days` }
-      }
+    // Amber: any AV role within cooldown window
+    if (!hasAmber && AV_ROLES.some(r => isAssigned(m, r))) {
+      hasAmber = true
     }
   }
 
-  return { level: null }
+  return hasAmber
+    ? { level: 'amber', reason: `Assigned within ${cooldownDays} days` }
+    : { level: null }
 }
 
 // Get meeting stats per person for rolling 6 months
