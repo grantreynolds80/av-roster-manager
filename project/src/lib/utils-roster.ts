@@ -282,6 +282,67 @@ export function getSuggestions(
   })
 }
 
+const AUTO_FILL_ROLE_ORDER: AvRole[] = ['video', 'audio', 'vc', 'platform', 'backup', 'mic1', 'mic2']
+
+export interface AutoFillChange {
+  meetingId: string
+  role: AvRole
+}
+
+export interface AutoFillResult {
+  meetings: Meeting[]
+  changes: AutoFillChange[]
+  filledSlots: number
+  filledMeetings: number
+  unfilledSlots: number
+}
+
+export function autoFill(
+  meetings: Meeting[],
+  people: Person[],
+  cooldownDays: number
+): AutoFillResult {
+  const today = new Date().toISOString().split('T')[0]
+  let current = meetings.map(m => ({ ...m, planned: { ...m.planned } }))
+  const targets = current
+    .filter(m => m.date >= today && m.status === 'Planned')
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  const changes: AutoFillChange[] = []
+  const filledMeetingIds = new Set<string>()
+  let unfilledSlots = 0
+
+  for (const target of targets) {
+    for (const role of AUTO_FILL_ROLE_ORDER) {
+      const live = current.find(m => m.id === target.id)!
+      if (live.planned[role]) continue
+      if (role === 'backup' && !live.backupRequired) continue
+
+      const roleSuggestions = getSuggestions(current, people, live, cooldownDays).find(s => s.role === role)
+      const best = roleSuggestions?.suggestions[0]
+
+      if (best) {
+        const personId = best.person.id
+        current = current.map(m =>
+          m.id === live.id ? { ...m, planned: { ...m.planned, [role]: personId } } : m
+        )
+        changes.push({ meetingId: live.id, role })
+        filledMeetingIds.add(live.id)
+      } else {
+        unfilledSlots++
+      }
+    }
+  }
+
+  return {
+    meetings: current,
+    changes,
+    filledSlots: changes.length,
+    filledMeetings: filledMeetingIds.size,
+    unfilledSlots,
+  }
+}
+
 // Export data as CSV
 export function exportCSV(meetings: Meeting[], people: Person[]): string {
   const headers = [

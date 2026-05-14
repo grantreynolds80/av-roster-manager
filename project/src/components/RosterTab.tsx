@@ -11,14 +11,14 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { CirclePlus as PlusCircle, Upload, CircleCheck as CheckCircle2, Circle as XCircle, Trash2, Lightbulb, ChevronDown, ChevronUp, X } from 'lucide-react'
+import { CirclePlus as PlusCircle, Upload, CircleCheck as CheckCircle2, Circle as XCircle, Trash2, Lightbulb, ChevronDown, ChevronUp, X, Wand2 } from 'lucide-react'
 import type { Meeting, Person, AvRole, NonAvRole, AnyRole, RoleCompletion, PlannedAssignments } from '../types'
 import { AV_ROLES, NON_AV_ROLES, ROLE_LABELS } from '../types'
 import {
   formatDate, formatDateShort, getPersonName, getPeopleForRole,
   getAllAssignedIds, getPersonRoleInMeeting, checkCooldown,
   exportCSV, triggerDownload, deriveStatus, countUnfilledRoles,
-  isPersonCurrentlyUnavailable,
+  isPersonCurrentlyUnavailable, autoFill,
 } from '../lib/utils-roster'
 import { ConflictModal } from './ConflictModal'
 import { MarkCompleteModal } from './MarkCompleteModal'
@@ -238,6 +238,24 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
     triggerDownload(csv, 'av-roster.csv', 'text/csv')
   }
 
+  const handleAutoFill = () => {
+    const snapshot = meetings
+    const result = autoFill(meetings, people, cooldownDays)
+    if (result.changes.length === 0 && result.unfilledSlots === 0) {
+      toast.info('No empty slots to fill.')
+      return
+    }
+    onUpdateMeetings(result.meetings)
+    const filledPart = `Filled ${result.filledSlots} slot${result.filledSlots !== 1 ? 's' : ''} across ${result.filledMeetings} meeting${result.filledMeetings !== 1 ? 's' : ''}.`
+    const unfilledPart = result.unfilledSlots > 0
+      ? ` ${result.unfilledSlots} slot${result.unfilledSlots !== 1 ? 's' : ''} left unfilled due to unavoidable conflicts.`
+      : ''
+    toast.success(filledPart + unfilledPart, {
+      action: { label: 'Undo', onClick: () => onUpdateMeetings(snapshot) },
+      duration: 15000,
+    })
+  }
+
   const statusBadgeVariant = (status: string) => {
     if (status === 'Completed') return 'secondary'
     if (status === 'Cancelled') return 'destructive'
@@ -275,6 +293,10 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
           <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
             <Upload className="h-4 w-4 mr-1" />
             Import Schedule
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleAutoFill}>
+            <Wand2 className="h-4 w-4 mr-1" />
+            Auto-fill
           </Button>
         </div>
         <div className="flex items-center gap-4">
