@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { toast } from 'sonner'
 import { processXLSXRows, processPDFBuffer, applyImportedMap } from '../lib/import'
 import { Button } from '@/components/ui/button'
@@ -263,6 +263,23 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
     })
   }
 
+  const { weekStart, weekEnd } = useMemo(() => {
+    const today = new Date()
+    const dow = today.getDay()
+    const monday = new Date(today)
+    monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1))
+    monday.setHours(0, 0, 0, 0)
+    const sunday = new Date(monday)
+    sunday.setDate(monday.getDate() + 6)
+    sunday.setHours(23, 59, 59, 999)
+    return { weekStart: monday, weekEnd: sunday }
+  }, [])
+
+  const isCurrentWeek = (dateStr: string) => {
+    const d = new Date(dateStr + 'T00:00:00')
+    return d >= weekStart && d <= weekEnd
+  }
+
   const statusBadgeVariant = (status: string) => {
     if (status === 'Completed') return 'secondary'
     if (status === 'Cancelled') return 'destructive'
@@ -342,7 +359,13 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-medium text-sm">{formatDate(meeting.date)}</span>
                   <Badge variant="outline" className="text-xs">{meeting.type}</Badge>
-                  <Badge variant={statusBadgeVariant(meeting.status)} className="text-xs">{meeting.status}</Badge>
+                  {meeting.status === 'Planned' && isCurrentWeek(meeting.date) ? (
+                    <Badge className="text-xs bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700">Planned</Badge>
+                  ) : meeting.status === 'Planned' ? (
+                    <Badge variant="outline" className="text-xs bg-muted text-muted-foreground border-muted-foreground/20">Planned</Badge>
+                  ) : (
+                    <Badge variant={statusBadgeVariant(meeting.status)} className="text-xs">{meeting.status}</Badge>
+                  )}
                   {meeting.status === 'Planned' && countUnfilledRoles(meeting) > 0 && (
                     <span className="text-xs text-muted-foreground/60">{countUnfilledRoles(meeting)} unfilled</span>
                   )}
@@ -520,8 +543,10 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                     <Badge className="text-xs bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800">Completed</Badge>
                   ) : meeting.status === 'Cancelled' ? (
                     <Badge variant="destructive" className="text-xs">Cancelled</Badge>
+                  ) : isCurrentWeek(meeting.date) ? (
+                    <Badge className="text-xs bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700">Planned</Badge>
                   ) : (
-                    <Badge variant="outline" className="text-xs text-muted-foreground/50 border-muted-foreground/25">Planned</Badge>
+                    <Badge variant="outline" className="text-xs bg-muted text-muted-foreground border-muted-foreground/20">Planned</Badge>
                   )}
                 </td>
                 {AV_ROLES.map(role => {
