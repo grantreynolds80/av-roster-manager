@@ -316,8 +316,8 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                   {AV_ROLES.map(role => {
                     const currentId = meeting.planned[role]
                     const cdLevel = getCooldownLevel(meeting, role, currentId)
-                    const cellBg = cdLevel === 'red' ? 'bg-red-50 dark:bg-red-950/30' : cdLevel === 'amber' ? 'bg-amber-50 dark:bg-amber-950/20' : ''
-                    const triggerBg = cdLevel === 'red' ? 'bg-red-100/60 dark:bg-red-900/30' : cdLevel === 'amber' ? 'bg-amber-100/60 dark:bg-amber-900/20' : ''
+                    const cellBg = cdLevel === 'red' ? 'bg-red-50 dark:bg-red-500/10 dark:border-l-2 dark:border-red-500' : cdLevel === 'amber' ? 'bg-amber-50 dark:bg-amber-500/10 dark:border-l-2 dark:border-amber-500' : ''
+                    const triggerBg = cdLevel === 'red' ? 'bg-red-100/60 dark:bg-transparent' : cdLevel === 'amber' ? 'bg-amber-100/60 dark:bg-transparent' : ''
                     const eligible = getPeopleForRole(people, role)
 
                     if (role === 'backup' && !meeting.backupRequired && meeting.status !== 'Completed') {
@@ -487,8 +487,8 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                 {AV_ROLES.map(role => {
                   const currentId = meeting.planned[role]
                   const cdLevel = getCooldownLevel(meeting, role, currentId)
-                  const cellBg = cdLevel === 'red' ? 'bg-red-50 dark:bg-red-950/30' : cdLevel === 'amber' ? 'bg-amber-50 dark:bg-amber-950/20' : ''
-                  const triggerBg = cdLevel === 'red' ? 'bg-red-100/60 dark:bg-red-900/30' : cdLevel === 'amber' ? 'bg-amber-100/60 dark:bg-amber-900/20' : 'bg-transparent'
+                  const cellBg = cdLevel === 'red' ? 'bg-red-50 dark:bg-red-500/10 dark:border-l-2 dark:border-red-500' : cdLevel === 'amber' ? 'bg-amber-50 dark:bg-amber-500/10 dark:border-l-2 dark:border-amber-500' : ''
+                  const triggerBg = cdLevel === 'red' ? 'bg-red-100/60 dark:bg-transparent' : cdLevel === 'amber' ? 'bg-amber-100/60 dark:bg-transparent' : 'bg-transparent'
                   const eligible = getPeopleForRole(people, role)
 
                   if (role === 'backup' && !meeting.backupRequired && meeting.status !== 'Completed') {
