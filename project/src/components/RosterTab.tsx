@@ -13,7 +13,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { CirclePlus as PlusCircle, Upload, CircleCheck as CheckCircle2, Circle as XCircle, Trash2, Lightbulb, ChevronDown, ChevronUp, X } from 'lucide-react'
-import type { Meeting, Person, AvRole, AnyRole, RoleCompletion, PlannedAssignments } from '../types'
+import type { Meeting, Person, AvRole, NonAvRole, AnyRole, RoleCompletion, PlannedAssignments } from '../types'
 import { AV_ROLES, NON_AV_ROLES, ROLE_LABELS } from '../types'
 import {
   formatDate, getPersonName, getPeopleForRole,
@@ -164,6 +164,14 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
     onUpdateMeetings(meetings.map(m =>
       m.id === meetingId
         ? { ...m, backupRequired: required, planned: required ? m.planned : { ...m.planned, backup: undefined } }
+        : m
+    ))
+  }
+
+  const handleNonAvRoleEdit = (meetingId: string, role: NonAvRole, value: string) => {
+    onUpdateMeetings(meetings.map(m =>
+      m.id === meetingId
+        ? { ...m, planned: { ...m.planned, [role]: value || undefined } }
         : m
     ))
   }
@@ -646,11 +654,24 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
 
                   <Separator className="my-2" />
 
-                  {/* Non-AV roles (read-only, greyed) */}
+                  {/* Non-AV roles — editable text for Planned meetings */}
                   {NON_AV_ROLES.map(role => (
-                    <div key={role} className="grid grid-cols-2 gap-2 items-center opacity-60">
+                    <div key={role} className="grid grid-cols-2 gap-2 items-center">
                       <span className="text-xs font-medium text-muted-foreground">{ROLE_LABELS[role]}</span>
-                      <span className="text-sm text-muted-foreground">{getPersonName(people, meeting.planned[role]) || meeting.planned[role] || '—'}</span>
+                      {meeting.status !== 'Planned' ? (
+                        <span className="text-sm text-muted-foreground opacity-60">
+                          {getPersonName(people, meeting.planned[role]) || meeting.planned[role] || '—'}
+                        </span>
+                      ) : (
+                        <input
+                          key={meeting.planned[role] ?? ''}
+                          className="text-sm bg-transparent border-b border-dashed border-muted-foreground/30 focus:outline-none focus:border-primary px-0 py-0.5 text-muted-foreground w-full"
+                          placeholder="—"
+                          defaultValue={getPersonName(people, meeting.planned[role]) || meeting.planned[role] || ''}
+                          onBlur={e => handleNonAvRoleEdit(meeting.id, role as NonAvRole, e.target.value.trim())}
+                          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                        />
+                      )}
                     </div>
                   ))}
 
@@ -776,8 +797,21 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                   )
                 })}
                 {NON_AV_ROLES.map(role => (
-                  <td key={role} className="p-2 opacity-60 text-muted-foreground">
-                    {getPersonName(people, meeting.planned[role]) || meeting.planned[role] || '—'}
+                  <td key={role} className="p-1">
+                    {meeting.status !== 'Planned' ? (
+                      <span className="text-sm px-2 opacity-60 text-muted-foreground">
+                        {getPersonName(people, meeting.planned[role]) || meeting.planned[role] || '—'}
+                      </span>
+                    ) : (
+                      <input
+                        key={meeting.planned[role] ?? ''}
+                        className="h-7 w-full px-2 text-xs bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-ring rounded text-muted-foreground placeholder:text-muted-foreground/40"
+                        placeholder="—"
+                        defaultValue={getPersonName(people, meeting.planned[role]) || meeting.planned[role] || ''}
+                        onBlur={e => handleNonAvRoleEdit(meeting.id, role as NonAvRole, e.target.value.trim())}
+                        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                      />
+                    )}
                   </td>
                 ))}
                 <td className="p-1">
