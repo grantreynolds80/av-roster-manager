@@ -114,6 +114,7 @@ export function App() {
               meetings={meetings}
               people={people}
               onUpdatePeople={handleUpdatePeople}
+              onUpdateMeetings={handleUpdateMeetings}
             />
           </TabsContent>
         </Tabs>

@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import type { Meeting, Person } from '../types'
 import { ROLE_LABELS } from '../types'
@@ -13,9 +14,12 @@ interface SuggestionsDrawerProps {
 }
 
 export function SuggestionsDrawer({ open, meeting, meetings, people, onClose, onAssign }: SuggestionsDrawerProps) {
-  if (!meeting) return null
+  const suggestions = useMemo(
+    () => meeting ? getSuggestions(meetings, people, meeting) : [],
+    [meetings, people, meeting]
+  )
 
-  const suggestions = getSuggestions(meetings, people, meeting)
+  if (!meeting) return null
 
   return (
     <Sheet open={open} onOpenChange={v => { if (!v) onClose() }}>

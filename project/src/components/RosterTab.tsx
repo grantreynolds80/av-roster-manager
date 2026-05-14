@@ -1,7 +1,6 @@
 import { useState, useRef } from 'react'
-import * as XLSX from 'xlsx'
 import { toast } from 'sonner'
-import { parseDeckhandPDF } from '../lib/pdf-import'
+import { processXLSXRows, processPDFBuffer, applyImportedMap } from '../lib/import'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -18,7 +17,7 @@ import { AV_ROLES, NON_AV_ROLES, ROLE_LABELS } from '../types'
 import {
   formatDate, formatDateShort, getPersonName, getPeopleForRole,
   getAllAssignedIds, getPersonRoleInMeeting, checkCooldown,
-  exportCSV, triggerDownload, deriveStatus
+  exportCSV, triggerDownload, deriveStatus, countUnfilledRoles
 } from '../lib/utils-roster'
 import { ConflictModal } from './ConflictModal'
 import { MarkCompleteModal } from './MarkCompleteModal'
@@ -130,7 +129,7 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
     const newType = lastType === 'Weekend' ? 'Midweek' : 'Weekend'
 
     const newMeeting: Meeting = {
-      id: `m${Date.now()}`,
+      id: crypto.randomUUID(),
       date: dateStr,
       type: newType,
       status: 'Planned',
@@ -179,87 +178,15 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
 
   const importFile = (file: File) => {
     const isPdf = file.name.toLowerCase().endsWith('.pdf')
+    const reader = new FileReader()
 
-    type ImportedAssignments = {
-      reader?: string; entranceAttendant?: string; auditoriumAttendant?: string
-      platform?: string; mic1?: string; mic2?: string
-      audio?: string; video?: string; backup?: string; vc?: string
-      backupRequired?: boolean
-    }
-
-    const applyImportedMap = (importedMap: Map<string, ImportedAssignments>) => {
-      let updatedCount = 0
-      let createdCount = 0
-
-      const updatedMeetings = meetings.map(meeting => {
-        const imp = importedMap.get(meeting.date)
-        if (!imp) return meeting
-
-        const newPlanned = { ...meeting.planned }
-        let changed = false
-
-        const setAlways = (field: keyof typeof newPlanned, val?: string) => {
-          if (val && newPlanned[field] !== val) { newPlanned[field] = val; changed = true }
-        }
-
-        setAlways('reader', imp.reader)
-        setAlways('entranceAttendant', imp.entranceAttendant)
-        setAlways('auditoriumAttendant', imp.auditoriumAttendant)
-        setAlways('platform', imp.platform)
-        setAlways('mic1', imp.mic1)
-        setAlways('mic2', imp.mic2)
-        setAlways('audio', imp.audio)
-        setAlways('video', imp.video)
-        setAlways('backup', imp.backup)
-        setAlways('vc', imp.vc)
-
-        const newBackupRequired = imp.backupRequired ?? meeting.backupRequired
-        if (newBackupRequired !== meeting.backupRequired) {
-          changed = true
-          if (!newBackupRequired) newPlanned.backup = undefined
-        }
-
-        if (changed) updatedCount++
-        return changed
-          ? { ...meeting, planned: newPlanned, backupRequired: newBackupRequired }
-          : meeting
-      })
-
-      const existingDates = new Set(meetings.map(m => m.date))
-      const newMeetings: Meeting[] = []
-
-      for (const [date, imp] of importedMap) {
-        if (existingDates.has(date)) continue
-        const dow = new Date(date).getDay()
-        const type: Meeting['type'] = dow === 6 ? 'Weekend' : 'Midweek'
-        newMeetings.push({
-          id: `m-${date}-${Math.random().toString(36).slice(2, 7)}`,
-          date,
-          type,
-          status: 'Planned',
-          backupRequired: imp.backupRequired ?? (type === 'Weekend'),
-          planned: {
-            reader: imp.reader,
-            entranceAttendant: imp.entranceAttendant,
-            auditoriumAttendant: imp.auditoriumAttendant,
-            platform: imp.platform,
-            mic1: imp.mic1,
-            mic2: imp.mic2,
-            audio: imp.audio,
-            video: imp.video,
-            backup: imp.backup,
-            vc: imp.vc,
-          },
-          completions: {},
-        })
-        createdCount++
+    const handleResult = (importedMap: Map<string, import('../lib/import').ImportedAssignments>) => {
+      if (importedMap.size === 0) {
+        toast.error('No dates found in the imported file. Check the file format.')
+        return
       }
-
-      const finalMeetings = [...updatedMeetings, ...newMeetings]
-        .sort((a, b) => a.date.localeCompare(b.date))
-
+      const { meetings: finalMeetings, updatedCount, createdCount } = applyImportedMap(importedMap, meetings)
       onUpdateMeetings(finalMeetings)
-
       const total = updatedCount + createdCount
       if (total === 0) {
         toast.info('Import complete — no changes were needed.')
@@ -271,230 +198,11 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
       }
     }
 
-    const processRows = (rows: unknown[][]) => {
-      try {
-        const SKIP_VALUES = new Set(['regional convention', 'unassigned', ''])
-
-        const getCell = (row: unknown[] | undefined, col: number): string => {
-          const v = row?.[col]
-          if (typeof v === 'string') return v.replace(/\n.*/s, '').trim()
-          if (typeof v === 'number') return String(v)
-          return ''
-        }
-
-        // AV roles: return person ID, or undefined if not found (treated as unassigned)
-        const findPersonId = (name: string): string | undefined => {
-          if (!name) return undefined
-          const normalized = name.toLowerCase()
-          if (SKIP_VALUES.has(normalized)) return undefined
-          return people.find(p => p.name.toLowerCase() === normalized)?.id
-        }
-        // Non-AV roles: return person ID if found, else raw name string (may not be in AV roster)
-        const findNonAvName = (name: string): string | undefined => {
-          if (!name) return undefined
-          const normalized = name.toLowerCase()
-          if (SKIP_VALUES.has(normalized)) return undefined
-          return people.find(p => p.name.toLowerCase() === normalized)?.id ?? name
-        }
-
-        const MONTH_NAMES = ['january','february','march','april','may','june','july','august','september','october','november','december']
-
-        const parseDeckhandDate = (raw: string): string | undefined => {
-          if (!raw || typeof raw !== 'string') return undefined
-          // Deckhand format: "Wednesday June 10Wednesday\nJune 10" — use second part after \n
-          const lineParts = raw.split(/[\n\r]/)
-          let datePart: string
-          if (lineParts.length > 1 && lineParts[1].trim()) {
-            datePart = lineParts[1].trim()
-          } else {
-            datePart = lineParts[0].replace(/^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s*/i, '').trim()
-          }
-          if (!datePart) return undefined
-          // Parse "Month Day" directly to avoid timezone shifting from new Date()
-          const m = datePart.match(/^([A-Za-z]+)\s+(\d{1,2})$/)
-          if (!m) return undefined
-          const monthIdx = MONTH_NAMES.indexOf(m[1].toLowerCase())
-          const day = parseInt(m[2], 10)
-          if (monthIdx < 0 || isNaN(day)) return undefined
-          const now = new Date()
-          const month = String(monthIdx + 1).padStart(2, '0')
-          const dayStr = String(day).padStart(2, '0')
-          // Use current year; fall back to next year if the month has already passed
-          const year = (monthIdx + 1 < now.getMonth() + 1) ? now.getFullYear() + 1 : now.getFullYear()
-          return `${year}-${month}-${dayStr}`
-        }
-
-        const DOW_RE = /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/i
-
-        // Col A label → ImportedAssignments field (compared lowercase, robust to row reordering)
-        const LABEL_MAP: Record<string, string> = {
-          'reader':                    'reader',
-          'entrance attendant':        'entranceAttendant',
-          'auditorium attendant':      'auditoriumAttendant',
-          'platform':                  'platform',
-          'microphones':               'mic1',
-          'videoconference attendant': 'vc',
-          'audio operator':            'audio',
-          'video operator':            'video',
-          'audio/video operator':      'backup',
-        }
-
-        // Find all date header row indices.
-        // A header row has at least one parseable date in any column (not just col 1),
-        // since some blocks have "Regional Convention" in col A/B with real dates further right.
-        const headerRowIndices: number[] = []
-        for (let r = 0; r < rows.length; r++) {
-          const row = rows[r] as unknown[]
-          let isHeader = false
-          for (let c = 1; c < row.length; c++) {
-            const cell = row[c]
-            if (typeof cell === 'string' && DOW_RE.test(cell)) { isHeader = true; break }
-            if (cell instanceof Date && !isNaN(cell.getTime())) { isHeader = true; break }
-            if (typeof cell === 'number' && !!XLSX.SSF.parse_date_code(cell)) { isHeader = true; break }
-          }
-          if (isHeader) headerRowIndices.push(r)
-        }
-
-        if (headerRowIndices.length === 0) {
-          toast.error('No dates found in the imported file. Check the file format.')
-          return
-        }
-
-        const importedMap = new Map<string, ImportedAssignments>()
-
-        for (let bi = 0; bi < headerRowIndices.length; bi++) {
-          const headerRowIdx = headerRowIndices[bi]
-          const nextHeaderRowIdx = bi + 1 < headerRowIndices.length
-            ? headerRowIndices[bi + 1] : rows.length
-          const headerRow = rows[headerRowIdx] as unknown[]
-
-          // Parse date columns from the header row
-          const colDates: Array<{ colIdx: number; date: string }> = []
-          for (let c = 1; c < headerRow.length; c++) {
-            const cellVal = headerRow[c]
-            let dateStr: string | undefined
-            if (cellVal instanceof Date) {
-              dateStr = cellVal.toISOString().split('T')[0]
-            } else if (typeof cellVal === 'number') {
-              const parsed = XLSX.SSF.parse_date_code(cellVal)
-              if (parsed) dateStr = `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`
-            } else if (typeof cellVal === 'string' && cellVal.trim()) {
-              if (/regional convention/i.test(cellVal)) continue
-              dateStr = parseDeckhandDate(cellVal)
-            }
-            if (dateStr) colDates.push({ colIdx: c, date: dateStr })
-          }
-          if (colDates.length === 0) continue
-
-          for (const { date } of colDates) {
-            if (!importedMap.has(date)) importedMap.set(date, {})
-          }
-
-          // Dynamically scan rows below this header for role labels in col A.
-          // Mic 2 has no label — it's the first blank-label row immediately after Microphones.
-          const roleRowMap: Array<{ field: string; rowIdx: number }> = []
-          let lastWasMic1 = false
-
-          for (let r = headerRowIdx + 1; r < nextHeaderRowIdx; r++) {
-            const row = rows[r] as unknown[]
-            const labelRaw = typeof row[0] === 'string' ? row[0].trim() : ''
-            const label = labelRaw.toLowerCase()
-
-            if (lastWasMic1 && labelRaw === '') {
-              roleRowMap.push({ field: 'mic2', rowIdx: r })
-              lastWasMic1 = false
-              continue
-            }
-            lastWasMic1 = false
-
-            if (label in LABEL_MAP) {
-              roleRowMap.push({ field: LABEL_MAP[label], rowIdx: r })
-              if (LABEL_MAP[label] === 'mic1') lastWasMic1 = true
-            }
-          }
-
-          // For each date column, read values from the dynamically located role rows
-          for (const { colIdx, date } of colDates) {
-            const entry = importedMap.get(date)!
-
-            for (const { field, rowIdx } of roleRowMap) {
-              const raw = getCell(rows[rowIdx] as unknown[], colIdx)
-
-              if (field === 'backup') {
-                // Any cell value (even "unassigned") means the slot exists; blank means no slot
-                entry.backupRequired = raw !== ''
-                const pid = findPersonId(raw)
-                if (pid !== undefined) entry.backup = pid
-              } else if (field === 'reader' || field === 'entranceAttendant' || field === 'auditoriumAttendant') {
-                const val = findNonAvName(raw)
-                if (val !== undefined) entry[field] = val
-              } else {
-                const val = findPersonId(raw)
-                if (val !== undefined) (entry as Record<string, string | undefined>)[field] = val
-              }
-            }
-          }
-        }
-
-        if (importedMap.size === 0) {
-          toast.error('No dates found in the imported file. Check the file format.')
-          return
-        }
-
-        applyImportedMap(importedMap)
-      } catch (err) {
-        console.error('Import failed:', err)
-        toast.error('Import failed. Check the file format and try again.')
-      }
-    }
-
-    const reader = new FileReader()
-
     if (isPdf) {
       reader.onload = async (ev) => {
         try {
-          const arrayBuffer = ev.target!.result as ArrayBuffer
-          const pdfMap = await parseDeckhandPDF(arrayBuffer)
-
-          if (pdfMap.size === 0) {
-            toast.error('No dates found in the PDF. Check the file format.')
-            return
-          }
-
-          const SKIP = new Set(['regional convention', 'unassigned', ''])
-          const findId = (name: string | undefined): string | undefined => {
-            if (!name) return undefined
-            const n = name.toLowerCase()
-            if (SKIP.has(n)) return undefined
-            return people.find(p => p.name.toLowerCase() === n)?.id
-          }
-          // Non-AV roles: fall back to raw name string if person isn't in roster
-          const findNonAvId = (name: string | undefined): string | undefined => {
-            if (!name) return undefined
-            const n = name.toLowerCase()
-            if (SKIP.has(n)) return undefined
-            return people.find(p => p.name.toLowerCase() === n)?.id ?? name
-          }
-
-          const resolvedMap = new Map<string, ImportedAssignments>()
-          for (const [date, raw] of pdfMap) {
-            const dow = new Date(date).getDay()
-            resolvedMap.set(date, {
-              reader:              findNonAvId(raw.reader),
-              entranceAttendant:   findNonAvId(raw.entranceAttendant),
-              auditoriumAttendant: findNonAvId(raw.auditoriumAttendant),
-              platform:            findId(raw.platform),
-              mic1:                findId(raw.mic1),
-              mic2:                findId(raw.mic2),
-              audio:               findId(raw.audio),
-              video:               findId(raw.video),
-              backup:              findId(raw.backup),
-              vc:                  findId(raw.vc),
-              backupRequired:      dow === 6 || raw.backup !== undefined,
-            })
-          }
-
-          applyImportedMap(resolvedMap)
+          const importedMap = await processPDFBuffer(ev.target!.result as ArrayBuffer, people)
+          handleResult(importedMap)
         } catch (err) {
           console.error('PDF import failed:', err)
           toast.error('PDF import failed. Check the file format and try again.')
@@ -502,12 +210,23 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
       }
       reader.readAsArrayBuffer(file)
     } else {
-      reader.onload = (ev) => {
-        const data = new Uint8Array(ev.target!.result as ArrayBuffer)
-        const workbook = XLSX.read(data, { type: 'array', cellDates: true })
-        const sheet = workbook.Sheets[workbook.SheetNames[0]]
-        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as unknown[][]
-        processRows(rows)
+      reader.onload = async (ev) => {
+        try {
+          const { read, utils } = await import('xlsx')
+          const data = new Uint8Array(ev.target!.result as ArrayBuffer)
+          const workbook = read(data, { type: 'array', cellDates: true })
+          const sheet = workbook.Sheets[workbook.SheetNames[0]]
+          const rows = utils.sheet_to_json(sheet, { header: 1, defval: '' }) as unknown[][]
+          const importedMap = processXLSXRows(rows, people)
+          if (importedMap.size === 0) {
+            toast.error('No dates found in the imported file. Check the file format.')
+            return
+          }
+          handleResult(importedMap)
+        } catch (err) {
+          console.error('Import failed:', err)
+          toast.error('Import failed. Check the file format and try again.')
+        }
       }
       reader.readAsArrayBuffer(file)
     }
@@ -586,6 +305,9 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                   <span className="font-medium text-sm">{formatDate(meeting.date)}</span>
                   <Badge variant="outline" className="text-xs">{meeting.type}</Badge>
                   <Badge variant={statusBadgeVariant(meeting.status)} className="text-xs">{meeting.status}</Badge>
+                  {meeting.status === 'Planned' && countUnfilledRoles(meeting) > 0 && (
+                    <span className="text-xs text-muted-foreground/60">{countUnfilledRoles(meeting)} unfilled</span>
+                  )}
                 </div>
                 {isExpanded ? <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />}
               </button>
@@ -736,6 +458,9 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                 <td className="px-2 py-1 whitespace-nowrap">
                   <span className="font-medium text-sm">{formatDateShort(meeting.date)}</span>
                   <span className="text-muted-foreground/50 text-xs ml-1.5">· {meeting.type}</span>
+                  {meeting.status === 'Planned' && countUnfilledRoles(meeting) > 0 && (
+                    <span className="ml-1.5 text-[10px] text-muted-foreground/50">{countUnfilledRoles(meeting)} gaps</span>
+                  )}
                 </td>
                 <td className="px-2 py-1">
                   {meeting.status === 'Completed' ? (

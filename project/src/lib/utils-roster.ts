@@ -20,7 +20,9 @@ export function formatDateShort(dateStr: string): string {
 
 export function getPersonName(people: Person[], id?: string): string {
   if (!id) return ''
-  return people.find(p => p.id === id)?.name ?? ''
+  const person = people.find(p => p.id === id)
+  if (!person) return '[Removed]'
+  return person.name
 }
 
 export function getPeopleForRole(people: Person[], role: AvRole): Person[] {
@@ -64,6 +66,12 @@ export function deriveStatus(meeting: Meeting): Meeting['status'] {
     return c !== undefined && c.actual !== null
   })
   return allDone ? 'Completed' : 'Planned'
+}
+
+export function countUnfilledRoles(meeting: Meeting): number {
+  if (meeting.status !== 'Planned') return 0
+  const roles = meeting.backupRequired ? AV_ROLES : AV_ROLES.filter(r => r !== 'backup')
+  return roles.filter(r => !meeting.planned[r]).length
 }
 
 // Cooldown check — based on actual completions only (no-shows don't count)

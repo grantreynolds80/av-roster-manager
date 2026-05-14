@@ -19,7 +19,7 @@ interface PersonEditModalProps {
 export function PersonEditModal({ open, person, onSave, onClose }: PersonEditModalProps) {
   const [form, setForm] = useState<Person>(() =>
     person ?? {
-      id: `p${Date.now()}`,
+      id: crypto.randomUUID(),
       name: '',
       platform: false, mic1: false, mic2: false, audio: false, video: false, backup: false, vc: false,
       availability_status: 'Available',
@@ -33,7 +33,7 @@ export function PersonEditModal({ open, person, onSave, onClose }: PersonEditMod
   if (person !== lastPerson) {
     setLastPerson(person)
     setForm(person ?? {
-      id: `p${Date.now()}`,
+      id: crypto.randomUUID(),
       name: '',
       platform: false, mic1: false, mic2: false, audio: false, video: false, backup: false, vc: false,
       availability_status: 'Available',

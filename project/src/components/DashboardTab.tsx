@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { ChevronUp, ChevronDown, CirclePlus as PlusCircle, Trash2, UserX } from 'lucide-react'
@@ -18,6 +18,7 @@ interface DashboardTabProps {
   meetings: Meeting[]
   people: Person[]
   onUpdatePeople: (people: Person[]) => void
+  onUpdateMeetings: (meetings: Meeting[]) => void
 }
 
 const AVAILABILITY_COLORS: Record<string, string> = {
@@ -27,14 +28,14 @@ const AVAILABILITY_COLORS: Record<string, string> = {
   Medical: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
 }
 
-export function DashboardTab({ meetings, people, onUpdatePeople }: DashboardTabProps) {
+export function DashboardTab({ meetings, people, onUpdatePeople, onUpdateMeetings }: DashboardTabProps) {
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortAsc, setSortAsc] = useState(true)
   const [editPerson, setEditPerson] = useState<Person | null | 'new'>(null)
   const [historyPerson, setHistoryPerson] = useState<Person | null>(null)
   const [deletePersonId, setDeletePersonId] = useState<string | null>(null)
 
-  const stats = computeStats(meetings, people)
+  const stats = useMemo(() => computeStats(meetings, people), [meetings, people])
 
   const sortedStats = [...stats].sort((a, b) => {
     if (sortKey === 'name') {
@@ -69,6 +70,17 @@ export function DashboardTab({ meetings, people, onUpdatePeople }: DashboardTabP
   const handleDeletePerson = () => {
     if (!deletePersonId) return
     onUpdatePeople(people.filter(p => p.id !== deletePersonId))
+    onUpdateMeetings(meetings.map(m => {
+      const planned = { ...m.planned }
+      let changed = false
+      for (const key of Object.keys(planned) as Array<keyof typeof planned>) {
+        if (planned[key] === deletePersonId) {
+          planned[key] = undefined
+          changed = true
+        }
+      }
+      return changed ? { ...m, planned } : m
+    }))
     setDeletePersonId(null)
   }
 
