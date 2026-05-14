@@ -18,7 +18,7 @@ import {
   formatDate, formatDateShort, getPersonName, getPeopleForRole,
   getAllAssignedIds, getPersonRoleInMeeting, checkCooldown,
   exportCSV, triggerDownload, deriveStatus, countUnfilledRoles,
-  isPersonCurrentlyUnavailable, autoFill,
+  isPersonCurrentlyUnavailable, autoFill, generateNextMonthMeetings,
 } from '../lib/utils-roster'
 import { ConflictModal } from './ConflictModal'
 import { MarkCompleteModal } from './MarkCompleteModal'
@@ -240,19 +240,32 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
 
   const handleAutoFill = () => {
     const snapshot = meetings
-    const result = autoFill(meetings, people, cooldownDays)
-    if (result.changes.length === 0 && result.unfilledSlots === 0) {
-      toast.info('No empty slots to fill.')
+
+    const { newMeetings, monthLabel } = generateNextMonthMeetings(meetings, new Date())
+    const combined = [...meetings, ...newMeetings].sort((a, b) =>
+      a.date < b.date ? -1 : a.date > b.date ? 1 : 0
+    )
+
+    const result = autoFill(combined, people, cooldownDays)
+
+    if (newMeetings.length === 0 && result.filledSlots === 0 && result.unfilledSlots === 0) {
+      toast.info('No new meetings to create and no empty slots to fill.')
       return
     }
+
     onUpdateMeetings(result.meetings)
-    const filledPart = `Filled ${result.filledSlots} slot${result.filledSlots !== 1 ? 's' : ''} across ${result.filledMeetings} meeting${result.filledMeetings !== 1 ? 's' : ''}.`
-    const unfilledPart = result.unfilledSlots > 0
-      ? ` ${result.unfilledSlots} slot${result.unfilledSlots !== 1 ? 's' : ''} left unfilled due to unavoidable conflicts.`
+
+    const createdPart = newMeetings.length > 0
+      ? `Created ${newMeetings.length} meeting${newMeetings.length !== 1 ? 's' : ''} for ${monthLabel}.`
       : ''
-    toast.success(filledPart + unfilledPart, {
+    const filledPart = `Filled ${result.filledSlots} slot${result.filledSlots !== 1 ? 's' : ''}.`
+    const unfilledPart = result.unfilledSlots > 0
+      ? `${result.unfilledSlots} slot${result.unfilledSlots !== 1 ? 's' : ''} left unfilled.`
+      : ''
+
+    toast.success([createdPart, filledPart, unfilledPart].filter(Boolean).join(' '), {
       action: { label: 'Undo', onClick: () => onUpdateMeetings(snapshot) },
-      duration: 15000,
+      duration: 20000,
     })
   }
 

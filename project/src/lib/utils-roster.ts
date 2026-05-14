@@ -1,4 +1,4 @@
-import { format, parseISO, differenceInDays, isBefore, isAfter, startOfDay } from 'date-fns'
+import { format, parseISO, differenceInDays, isBefore, isAfter, startOfDay, addMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns'
 import type { Meeting, Person, AvRole, AnyRole } from '../types'
 import { AV_ROLES, NON_AV_ROLES } from '../types'
 
@@ -341,6 +341,51 @@ export function autoFill(
     filledMeetings: filledMeetingIds.size,
     unfilledSlots,
   }
+}
+
+export interface GenerateResult {
+  newMeetings: Meeting[]
+  monthLabel: string
+}
+
+export function generateNextMonthMeetings(existingMeetings: Meeting[], referenceDate: Date): GenerateResult {
+  const nextMonthStart = startOfMonth(addMonths(referenceDate, 1))
+  const nextMonthEnd = endOfMonth(nextMonthStart)
+  const monthLabel = format(nextMonthStart, 'MMMM yyyy')
+
+  const existingDates = new Set(existingMeetings.map(m => m.date))
+  const days = eachDayOfInterval({ start: nextMonthStart, end: nextMonthEnd })
+  const newMeetings: Meeting[] = []
+
+  for (const day of days) {
+    const dow = getDay(day) // 0=Sun, 3=Wed, 6=Sat
+    const dateStr = format(day, 'yyyy-MM-dd')
+    if (existingDates.has(dateStr)) continue
+
+    if (dow === 3) {
+      newMeetings.push({
+        id: crypto.randomUUID(),
+        date: dateStr,
+        type: 'Midweek',
+        status: 'Planned',
+        backupRequired: false,
+        planned: {},
+        completions: {},
+      })
+    } else if (dow === 6) {
+      newMeetings.push({
+        id: crypto.randomUUID(),
+        date: dateStr,
+        type: 'Weekend',
+        status: 'Planned',
+        backupRequired: true,
+        planned: {},
+        completions: {},
+      })
+    }
+  }
+
+  return { newMeetings, monthLabel }
 }
 
 // Export data as CSV
