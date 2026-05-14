@@ -496,7 +496,7 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                 </th>
               ))}
               {NON_AV_ROLES.map(role => (
-                <th key={role} className="border-b border-border text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap min-w-[120px] opacity-50">
+                <th key={role} className="border-b border-border text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap min-w-[200px] opacity-50">
                   {ROLE_LABELS[role]}
                 </th>
               ))}
