@@ -548,7 +548,7 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
             className={buttonVariants({ variant: 'outline', size: 'sm' })}
             onClick={async () => {
               try {
-                const [handle] = await window.showOpenFilePicker({
+                const [handle] = await (window as any).showOpenFilePicker({
                   types: [{ description: 'Deckhand Schedules', accept: { 'application/pdf': ['.pdf'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }],
                   multiple: false,
                 })

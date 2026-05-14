@@ -1,5 +1,5 @@
 import { format, parseISO, differenceInDays } from 'date-fns'
-import type { Meeting, Person, AvRole, AnyRole, RoleCompletion } from '../types'
+import type { Meeting, Person, AvRole, AnyRole } from '../types'
 import { AV_ROLES, NON_AV_ROLES } from '../types'
 
 export function formatDate(dateStr: string): string {
