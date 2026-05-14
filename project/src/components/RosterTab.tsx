@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import { toast } from 'sonner'
 import { parseDeckhandPDF } from '../lib/pdf-import'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
@@ -51,6 +51,7 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(null)
   const [cancelConfirm, setCancelConfirm] = useState<string | null>(null)
   const [showCompleted, setShowCompleted] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const sortedMeetings = [...meetings]
     .sort((a, b) => a.date.localeCompare(b.date))
@@ -543,24 +544,21 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
             <PlusCircle className="h-4 w-4 mr-1" />
             Add Meeting
           </Button>
-          <button
-            type="button"
-            className={buttonVariants({ variant: 'outline', size: 'sm' })}
-            onClick={async () => {
-              try {
-                const [handle] = await (window as any).showOpenFilePicker({
-                  types: [{ description: 'Deckhand Schedules', accept: { 'application/pdf': ['.pdf'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }],
-                  multiple: false,
-                })
-                importFile(await handle.getFile())
-              } catch (err) {
-                if (err instanceof Error && err.name !== 'AbortError') toast.error('Could not open file.')
-              }
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.xlsx"
+            className="hidden"
+            onChange={e => {
+              const file = e.target.files?.[0]
+              if (file) importFile(file)
+              e.target.value = ''
             }}
-          >
+          />
+          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
             <Upload className="h-4 w-4 mr-1" />
             Import Schedule
-          </button>
+          </Button>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
