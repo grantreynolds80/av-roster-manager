@@ -444,12 +444,12 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
 
       {/* Desktop table layout */}
       <div className="hidden md:block overflow-x-auto">
-        <table className="w-full min-w-[1200px] text-sm border-separate border-spacing-0 table-fixed">
-          <thead className="sticky top-[104px] z-[2] bg-muted/40">
+        <table className="w-full min-w-[1200px] text-sm border-separate border-spacing-0">
+          <thead className="z-[2] bg-muted">
             <tr>
-              <th className="sticky left-0 z-[3] bg-muted border-b border-border text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap w-32">Date</th>
-              <th className="sticky left-32 z-[3] bg-muted border-b border-border text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap w-20">Type</th>
-              <th className="sticky left-52 z-[3] bg-muted border-b border-border border-r border-border text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide w-24">Status</th>
+              <th className="sticky left-0 z-[3] bg-muted border-b border-border text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap w-32 min-w-[128px]">Date</th>
+              <th className="sticky left-32 z-[3] bg-muted border-b border-border text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap w-20 min-w-[80px]">Type</th>
+              <th className="sticky left-52 z-[3] bg-muted border-b border-border border-r border-border text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide w-24 min-w-[96px]">Status</th>
               {AV_ROLES.map(role => (
                 <th key={role} className="border-b border-border text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap min-w-[120px]">
                   {ROLE_LABELS[role]}
