@@ -16,7 +16,7 @@ import { CirclePlus as PlusCircle, Upload, CircleCheck as CheckCircle2, Circle a
 import type { Meeting, Person, AvRole, NonAvRole, AnyRole, RoleCompletion, PlannedAssignments } from '../types'
 import { AV_ROLES, NON_AV_ROLES, ROLE_LABELS } from '../types'
 import {
-  formatDate, getPersonName, getPeopleForRole,
+  formatDate, formatDateShort, getPersonName, getPeopleForRole,
   getAllAssignedIds, getPersonRoleInMeeting, checkCooldown,
   exportCSV, triggerDownload, deriveStatus
 } from '../lib/utils-roster'
@@ -527,8 +527,8 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
   const getCooldownClass = (meeting: Meeting, role: AvRole, personId?: string) => {
     if (!personId) return ''
     const result = checkCooldown(meetings, meeting, personId, role, cooldownDays)
-    if (result.level === 'red') return 'bg-red-100 dark:bg-red-900/30'
-    if (result.level === 'amber') return 'bg-amber-100 dark:bg-amber-900/30'
+    if (result.level === 'red') return 'border-l-2 border-red-400'
+    if (result.level === 'amber') return 'border-l-2 border-amber-300/70'
     return ''
   }
 
@@ -713,33 +713,38 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
       {/* Desktop table layout */}
       <div className="hidden md:block">
         <table className="w-full min-w-[1200px] text-sm border-collapse">
-          <thead className="sticky top-[104px] z-10 bg-background border-b border-border">
+          <thead className="sticky top-[104px] z-10 bg-muted/40 border-b border-border">
             <tr>
-              <th className="text-left p-2 font-medium text-muted-foreground whitespace-nowrap w-28">Date</th>
-              <th className="text-left p-2 font-medium text-muted-foreground w-24">Type</th>
-              <th className="text-left p-2 font-medium text-muted-foreground w-24">Status</th>
+              <th className="text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap w-40">Date</th>
+              <th className="text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide w-24">Status</th>
               {AV_ROLES.map(role => (
-                <th key={role} className="text-left p-2 font-medium text-muted-foreground whitespace-nowrap min-w-[120px]">
+                <th key={role} className="text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap min-w-[120px]">
                   {ROLE_LABELS[role]}
                 </th>
               ))}
               {NON_AV_ROLES.map(role => (
-                <th key={role} className="text-left p-2 font-medium text-muted-foreground whitespace-nowrap min-w-[120px] opacity-60">
+                <th key={role} className="text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap min-w-[120px] opacity-50">
                   {ROLE_LABELS[role]}
                 </th>
               ))}
-              <th className="text-left p-2 font-medium text-muted-foreground w-40">Actions</th>
+              <th className="text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide w-40">Actions</th>
             </tr>
           </thead>
           <tbody>
             {sortedMeetings.map((meeting, idx) => (
-              <tr key={meeting.id} className={`border-b border-border hover:bg-muted/30 transition-colors ${idx % 2 === 0 ? '' : 'bg-muted/10'}`}>
-                <td className="p-2 whitespace-nowrap font-medium">{formatDate(meeting.date)}</td>
-                <td className="p-2">
-                  <Badge variant="outline" className="text-xs">{meeting.type}</Badge>
+              <tr key={meeting.id} className={`border-b border-border hover:bg-muted/20 transition-colors ${idx % 2 === 0 ? '' : 'bg-muted/5'}`}>
+                <td className="px-2 py-1 whitespace-nowrap">
+                  <span className="font-medium text-sm">{formatDateShort(meeting.date)}</span>
+                  <span className="text-muted-foreground/50 text-xs ml-1.5">· {meeting.type}</span>
                 </td>
-                <td className="p-2">
-                  <Badge variant={statusBadgeVariant(meeting.status)} className="text-xs">{meeting.status}</Badge>
+                <td className="px-2 py-1">
+                  {meeting.status === 'Completed' ? (
+                    <Badge className="text-xs bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800">Completed</Badge>
+                  ) : meeting.status === 'Cancelled' ? (
+                    <Badge variant="destructive" className="text-xs">Cancelled</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-xs text-muted-foreground/50 border-muted-foreground/25">Planned</Badge>
+                  )}
                 </td>
                 {AV_ROLES.map(role => {
                   const currentId = meeting.planned[role]
@@ -762,7 +767,9 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                   return (
                     <td key={role} className={`p-1 ${cooldownClass}`}>
                       {meeting.status === 'Completed' ? (
-                        <span className="text-sm px-1">{getPersonName(people, meeting.completions[role]?.actual || meeting.planned[role]) || '—'}</span>
+                        <span className={`text-sm px-1 ${getPersonName(people, meeting.completions[role]?.actual || meeting.planned[role]) ? 'font-medium' : 'text-muted-foreground/40'}`}>
+                          {getPersonName(people, meeting.completions[role]?.actual || meeting.planned[role]) || '—'}
+                        </span>
                       ) : (
                         <div className={role === 'backup' ? 'flex items-center' : undefined}>
                           <Select
@@ -770,7 +777,7 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                             onValueChange={v => handleRoleAssign(meeting.id, role, v === '__none__' ? '' : v)}
                             disabled={meeting.status === 'Cancelled'}
                           >
-                            <SelectTrigger className="h-7 text-xs border-0 shadow-none focus:ring-0 bg-transparent flex-1 min-w-0">
+                            <SelectTrigger className={`h-7 text-xs border-0 shadow-none focus:ring-0 bg-transparent flex-1 min-w-0 ${currentId ? 'font-medium' : 'text-muted-foreground/40'}`}>
                               <SelectValue placeholder="—" />
                             </SelectTrigger>
                             <SelectContent>
@@ -797,13 +804,13 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                 {NON_AV_ROLES.map(role => (
                   <td key={role} className="p-1">
                     {meeting.status !== 'Planned' ? (
-                      <span className="text-sm px-2 opacity-60 text-muted-foreground">
+                      <span className="text-sm px-2 text-muted-foreground/50">
                         {getPersonName(people, meeting.planned[role]) || meeting.planned[role] || '—'}
                       </span>
                     ) : (
                       <input
                         key={meeting.planned[role] ?? ''}
-                        className="h-7 w-full px-2 text-xs bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-ring rounded text-muted-foreground placeholder:text-muted-foreground/40"
+                        className={`h-7 w-full px-2 text-sm bg-transparent border-0 focus:outline-none focus:ring-1 focus:ring-ring rounded placeholder:text-muted-foreground/40 ${meeting.planned[role] ? 'font-medium' : 'text-muted-foreground/40'}`}
                         placeholder="—"
                         defaultValue={getPersonName(people, meeting.planned[role]) || meeting.planned[role] || ''}
                         onBlur={e => handleNonAvRoleEdit(meeting.id, role as NonAvRole, e.target.value.trim())}
