@@ -210,9 +210,11 @@ export function computeStats(meetings: Meeting[], people: Person[]): PersonStats
 }
 
 // Suggest best people for each AV role
+export type AvailabilityBadge = 'green' | 'amber' | 'red' | null
+
 export interface RoleSuggestion {
   role: AvRole
-  suggestions: Array<{ person: Person; daysSinceLast: number; cooldown: 'amber' | null }>
+  suggestions: Array<{ person: Person; daysSinceLast: number; cooldown: AvailabilityBadge }>
 }
 
 export function getSuggestions(
@@ -259,7 +261,7 @@ export function getSuggestions(
         }
       }
 
-      return { person, daysSinceLast, cooldown: cooldownLevel as 'amber' | null }
+      return { person, daysSinceLast, cooldown: cooldownLevel }
     })
 
     // Exclude anyone with a red cooldown (assigned to any role within 7 days)
