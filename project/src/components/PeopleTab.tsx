@@ -127,7 +127,7 @@ export function PeopleTab({ people, meetings, onUpdatePeople, onUpdateMeetings }
                 </div>
               </button>
 
-              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              <div className="flex gap-1 shrink-0 md:opacity-0 md:group-hover:opacity-100 md:transition-opacity">
                 <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditPerson(person)}>
                   Edit
                 </Button>
