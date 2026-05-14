@@ -33,14 +33,12 @@ export interface PlannedAssignments {
   auditoriumAttendant?: string
 }
 
-export interface ActualAssignments {
-  platform?: string
-  mic1?: string
-  mic2?: string
-  audio?: string
-  video?: string
-  backup?: string
-  vc?: string
+export interface RoleCompletion {
+  // null  = role not yet marked complete
+  // ""    = role was unfilled on the night
+  // id    = person who actually did the role
+  actual: string | null
+  noshow: boolean  // planned person didn't show (fill-in may or may not have stepped in)
 }
 
 export interface Meeting {
@@ -48,8 +46,9 @@ export interface Meeting {
   date: string // ISO date string (YYYY-MM-DD)
   type: MeetingType
   status: MeetingStatus
+  backupRequired: boolean
   planned: PlannedAssignments
-  actual: ActualAssignments
+  completions: Partial<Record<AvRole, RoleCompletion>>
   notes?: string
 }
 

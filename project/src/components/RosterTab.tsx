@@ -1,8 +1,8 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import * as XLSX from 'xlsx'
 import { toast } from 'sonner'
 import { parseDeckhandPDF } from '../lib/pdf-import'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
@@ -10,13 +10,15 @@ import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
   AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction
 } from '@/components/ui/alert-dialog'
-import { CirclePlus as PlusCircle, Upload, CircleCheck as CheckCircle2, Circle as XCircle, Trash2, Lightbulb, ChevronDown, ChevronUp } from 'lucide-react'
-import type { Meeting, Person, AvRole, AnyRole, ActualAssignments, PlannedAssignments } from '../types'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
+import { CirclePlus as PlusCircle, Upload, CircleCheck as CheckCircle2, Circle as XCircle, Trash2, Lightbulb, ChevronDown, ChevronUp, X } from 'lucide-react'
+import type { Meeting, Person, AvRole, AnyRole, RoleCompletion, PlannedAssignments } from '../types'
 import { AV_ROLES, NON_AV_ROLES, ROLE_LABELS } from '../types'
 import {
   formatDate, getPersonName, getPeopleForRole,
   getAllAssignedIds, getPersonRoleInMeeting, checkCooldown,
-  exportCSV, triggerDownload
+  exportCSV, triggerDownload, deriveStatus
 } from '../lib/utils-roster'
 import { ConflictModal } from './ConflictModal'
 import { MarkCompleteModal } from './MarkCompleteModal'
@@ -48,9 +50,11 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
   const [suggestionsMeeting, setSuggestionsMeeting] = useState<Meeting | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(null)
   const [cancelConfirm, setCancelConfirm] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [showCompleted, setShowCompleted] = useState(false)
 
-  const sortedMeetings = [...meetings].sort((a, b) => a.date.localeCompare(b.date))
+  const sortedMeetings = [...meetings]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .filter(m => showCompleted || m.status !== 'Completed')
 
   const handleRoleAssign = (meetingId: string, role: AvRole, personId: string) => {
     const meeting = meetings.find(m => m.id === meetingId)
@@ -106,10 +110,11 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
     setConflictPending(null)
   }
 
-  const handleMarkComplete = (actual: ActualAssignments) => {
+  const handleMarkComplete = (completions: Partial<Record<AvRole, RoleCompletion>>) => {
     if (!markCompleteMeeting) return
+    const updated = { ...markCompleteMeeting, completions }
     onUpdateMeetings(meetings.map(m =>
-      m.id === markCompleteMeeting.id ? { ...m, actual, status: 'Completed' } : m
+      m.id === markCompleteMeeting.id ? { ...updated, status: deriveStatus(updated) } : m
     ))
     setMarkCompleteMeeting(null)
   }
@@ -128,8 +133,9 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
       date: dateStr,
       type: newType,
       status: 'Planned',
+      backupRequired: newType === 'Weekend',
       planned: {},
-      actual: {},
+      completions: {},
     }
     onUpdateMeetings([...meetings, newMeeting])
   }
@@ -154,18 +160,22 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
     setSuggestionsMeeting(meetings.find(m => m.id === suggestionsMeeting.id)!)
   }
 
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
+  const handleToggleBackupRequired = (meetingId: string, required: boolean) => {
+    onUpdateMeetings(meetings.map(m =>
+      m.id === meetingId
+        ? { ...m, backupRequired: required, planned: required ? m.planned : { ...m.planned, backup: undefined } }
+        : m
+    ))
+  }
 
+  const importFile = (file: File) => {
     const isPdf = file.name.toLowerCase().endsWith('.pdf')
-    const isCsv = file.name.toLowerCase().endsWith('.csv')
 
     type ImportedAssignments = {
       reader?: string; entranceAttendant?: string; auditoriumAttendant?: string
       platform?: string; mic1?: string; mic2?: string
       audio?: string; video?: string; backup?: string; vc?: string
+      backupRequired?: boolean
     }
 
     const applyImportedMap = (importedMap: Map<string, ImportedAssignments>) => {
@@ -179,9 +189,6 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
         const newPlanned = { ...meeting.planned }
         let changed = false
 
-        const setIfEmpty = (field: keyof typeof newPlanned, val?: string) => {
-          if (val && !newPlanned[field]) { newPlanned[field] = val; changed = true }
-        }
         const setAlways = (field: keyof typeof newPlanned, val?: string) => {
           if (val && newPlanned[field] !== val) { newPlanned[field] = val; changed = true }
         }
@@ -189,16 +196,24 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
         setAlways('reader', imp.reader)
         setAlways('entranceAttendant', imp.entranceAttendant)
         setAlways('auditoriumAttendant', imp.auditoriumAttendant)
-        setIfEmpty('platform', imp.platform)
-        setIfEmpty('mic1', imp.mic1)
-        setIfEmpty('mic2', imp.mic2)
-        setIfEmpty('audio', imp.audio)
-        setIfEmpty('video', imp.video)
-        setIfEmpty('backup', imp.backup)
-        setIfEmpty('vc', imp.vc)
+        setAlways('platform', imp.platform)
+        setAlways('mic1', imp.mic1)
+        setAlways('mic2', imp.mic2)
+        setAlways('audio', imp.audio)
+        setAlways('video', imp.video)
+        setAlways('backup', imp.backup)
+        setAlways('vc', imp.vc)
+
+        const newBackupRequired = imp.backupRequired ?? meeting.backupRequired
+        if (newBackupRequired !== meeting.backupRequired) {
+          changed = true
+          if (!newBackupRequired) newPlanned.backup = undefined
+        }
 
         if (changed) updatedCount++
-        return changed ? { ...meeting, planned: newPlanned } : meeting
+        return changed
+          ? { ...meeting, planned: newPlanned, backupRequired: newBackupRequired }
+          : meeting
       })
 
       const existingDates = new Set(meetings.map(m => m.date))
@@ -213,6 +228,7 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
           date,
           type,
           status: 'Planned',
+          backupRequired: imp.backupRequired ?? (type === 'Weekend'),
           planned: {
             reader: imp.reader,
             entranceAttendant: imp.entranceAttendant,
@@ -225,7 +241,7 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
             backup: imp.backup,
             vc: imp.vc,
           },
-          actual: {},
+          completions: {},
         })
         createdCount++
       }
@@ -235,19 +251,19 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
 
       onUpdateMeetings(finalMeetings)
 
-      const parts: string[] = []
-      if (createdCount > 0) parts.push(`${createdCount} meeting${createdCount !== 1 ? 's' : ''} created`)
-      if (updatedCount > 0) parts.push(`${updatedCount} meeting${updatedCount !== 1 ? 's' : ''} updated`)
-      if (parts.length === 0) {
+      const total = updatedCount + createdCount
+      if (total === 0) {
         toast.info('Import complete — no changes were needed.')
       } else {
-        toast.success(`Import complete: ${parts.join(', ')}.`)
+        const details: string[] = []
+        if (updatedCount > 0) details.push(`${updatedCount} updated`)
+        if (createdCount > 0) details.push(`${createdCount} new`)
+        toast.success(`Imported ${total} meeting${total !== 1 ? 's' : ''} (${details.join(', ')}).`)
       }
     }
 
     const processRows = (rows: unknown[][]) => {
       try {
-        // Values to treat as empty
         const SKIP_VALUES = new Set(['regional convention', 'unassigned', ''])
 
         const getCell = (row: unknown[] | undefined, col: number): string => {
@@ -257,115 +273,158 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
           return ''
         }
 
-        const findPersonByName = (name: string): string | undefined => {
+        // AV roles: return person ID, or undefined if not found (treated as unassigned)
+        const findPersonId = (name: string): string | undefined => {
           if (!name) return undefined
           const normalized = name.toLowerCase()
           if (SKIP_VALUES.has(normalized)) return undefined
           return people.find(p => p.name.toLowerCase() === normalized)?.id
         }
+        // Non-AV roles: return person ID if found, else raw name string (may not be in AV roster)
+        const findNonAvName = (name: string): string | undefined => {
+          if (!name) return undefined
+          const normalized = name.toLowerCase()
+          if (SKIP_VALUES.has(normalized)) return undefined
+          return people.find(p => p.name.toLowerCase() === normalized)?.id ?? name
+        }
 
-        // Parse a Deckhand date-header cell to YYYY-MM-DD.
-        // Cells look like "Wednesday June 10Wednesday\nJune 10" (duplicated with newline).
-        // Take the text before the first newline, then parse "Month Day" with a guessed year.
+        const MONTH_NAMES = ['january','february','march','april','may','june','july','august','september','october','november','december']
+
         const parseDeckhandDate = (raw: string): string | undefined => {
           if (!raw || typeof raw !== 'string') return undefined
-
-          // Try native Date first (handles ISO strings, xlsx-parsed dates)
-          const direct = new Date(raw)
-          if (!isNaN(direct.getTime())) return direct.toISOString().split('T')[0]
-
-          // Strip duplicate suffix after newline
-          const firstLine = raw.split(/[\n\r]/)[0].trim()
-          // Remove day-of-week prefix: "Wednesday June 10" → "June 10"
-          const withoutDow = firstLine.replace(/^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s*/i, '').trim()
-          if (!withoutDow) return undefined
-
-          // Try parsing "June 10" — Date.parse needs a year; guess current year first, then +1
-          const now = new Date()
-          for (const year of [now.getFullYear(), now.getFullYear() + 1]) {
-            const attempt = new Date(`${withoutDow} ${year}`)
-            if (!isNaN(attempt.getTime())) {
-              return attempt.toISOString().split('T')[0]
-            }
+          // Deckhand format: "Wednesday June 10Wednesday\nJune 10" — use second part after \n
+          const lineParts = raw.split(/[\n\r]/)
+          let datePart: string
+          if (lineParts.length > 1 && lineParts[1].trim()) {
+            datePart = lineParts[1].trim()
+          } else {
+            datePart = lineParts[0].replace(/^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s*/i, '').trim()
           }
-          return undefined
+          if (!datePart) return undefined
+          // Parse "Month Day" directly to avoid timezone shifting from new Date()
+          const m = datePart.match(/^([A-Za-z]+)\s+(\d{1,2})$/)
+          if (!m) return undefined
+          const monthIdx = MONTH_NAMES.indexOf(m[1].toLowerCase())
+          const day = parseInt(m[2], 10)
+          if (monthIdx < 0 || isNaN(day)) return undefined
+          const now = new Date()
+          const month = String(monthIdx + 1).padStart(2, '0')
+          const dayStr = String(day).padStart(2, '0')
+          // Use current year; fall back to next year if the month has already passed
+          const year = (monthIdx + 1 < now.getMonth() + 1) ? now.getFullYear() + 1 : now.getFullYear()
+          return `${year}-${month}-${dayStr}`
         }
 
-        // Collect all date-column entries across all blocks.
-        // A "date header row" is any row where column 1 contains a day-of-week word.
-        // Deckhand layout (relative to header row, 0-based offset):
-        //   +0 = date headers
-        //   +1 = Chairman
-        //   +2 = Reader
-        //   +3 = Entrance Attendant
-        //   +4 = Auditorium Attendant
-        //   +5 = Welcoming
-        //   +6 = Welcoming line 2 (blank label)
-        //   +7 = Platform
-        //   +8 = Mic 1
-        //   +9 = Mic 2 (blank label)
-        //   +10 = Security
-        //   +11 = Videoconference Attendant
-        //   +12 = Audio Operator
-        //   +13 = Video Operator
-        //   +14 = Audio/Video Operator (Backup)
         const DOW_RE = /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/i
 
-        type DateEntry = {
-          rowBase: number
-          colIdx: number
-          date: string
+        // Col A label → ImportedAssignments field (compared lowercase, robust to row reordering)
+        const LABEL_MAP: Record<string, string> = {
+          'reader':                    'reader',
+          'entrance attendant':        'entranceAttendant',
+          'auditorium attendant':      'auditoriumAttendant',
+          'platform':                  'platform',
+          'microphones':               'mic1',
+          'videoconference attendant': 'vc',
+          'audio operator':            'audio',
+          'video operator':            'video',
+          'audio/video operator':      'backup',
         }
 
-        const entries: DateEntry[] = []
-
+        // Find all date header row indices.
+        // A header row has at least one parseable date in any column (not just col 1),
+        // since some blocks have "Regional Convention" in col A/B with real dates further right.
+        const headerRowIndices: number[] = []
         for (let r = 0; r < rows.length; r++) {
           const row = rows[r] as unknown[]
-          const cell1 = typeof row[1] === 'string' ? row[1] : ''
-          if (!DOW_RE.test(cell1)) continue
-
-          // This is a date header row — scan all columns for dates
+          let isHeader = false
           for (let c = 1; c < row.length; c++) {
-            const cellVal = row[c]
-            let dateStr: string | undefined
-
-            if (cellVal instanceof Date) {
-              dateStr = cellVal.toISOString().split('T')[0]
-            } else if (typeof cellVal === 'number') {
-              const parsed = XLSX.SSF.parse_date_code(cellVal)
-              if (parsed) dateStr = `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`
-            } else if (typeof cellVal === 'string' && cellVal.trim()) {
-              dateStr = parseDeckhandDate(cellVal)
-            }
-
-            if (dateStr) entries.push({ rowBase: r, colIdx: c, date: dateStr })
+            const cell = row[c]
+            if (typeof cell === 'string' && DOW_RE.test(cell)) { isHeader = true; break }
+            if (cell instanceof Date && !isNaN(cell.getTime())) { isHeader = true; break }
+            if (typeof cell === 'number' && !!XLSX.SSF.parse_date_code(cell)) { isHeader = true; break }
           }
+          if (isHeader) headerRowIndices.push(r)
         }
 
-        if (entries.length === 0) {
+        if (headerRowIndices.length === 0) {
           toast.error('No dates found in the imported file. Check the file format.')
           return
         }
 
         const importedMap = new Map<string, ImportedAssignments>()
 
-        for (const { rowBase, colIdx, date } of entries) {
-          const r = rows
-          const off = (n: number) => r[rowBase + n] as unknown[] | undefined
+        for (let bi = 0; bi < headerRowIndices.length; bi++) {
+          const headerRowIdx = headerRowIndices[bi]
+          const nextHeaderRowIdx = bi + 1 < headerRowIndices.length
+            ? headerRowIndices[bi + 1] : rows.length
+          const headerRow = rows[headerRowIdx] as unknown[]
 
-          const assignments: ImportedAssignments = {
-            reader:              findPersonByName(getCell(off(2), colIdx)),
-            entranceAttendant:   findPersonByName(getCell(off(3), colIdx)),
-            auditoriumAttendant: findPersonByName(getCell(off(4), colIdx)),
-            platform:            findPersonByName(getCell(off(7), colIdx)),
-            mic1:                findPersonByName(getCell(off(8), colIdx)),
-            mic2:                findPersonByName(getCell(off(9), colIdx)),
-            vc:                  findPersonByName(getCell(off(11), colIdx)),
-            audio:               findPersonByName(getCell(off(12), colIdx)),
-            video:               findPersonByName(getCell(off(13), colIdx)),
-            backup:              findPersonByName(getCell(off(14), colIdx)),
+          // Parse date columns from the header row
+          const colDates: Array<{ colIdx: number; date: string }> = []
+          for (let c = 1; c < headerRow.length; c++) {
+            const cellVal = headerRow[c]
+            let dateStr: string | undefined
+            if (cellVal instanceof Date) {
+              dateStr = cellVal.toISOString().split('T')[0]
+            } else if (typeof cellVal === 'number') {
+              const parsed = XLSX.SSF.parse_date_code(cellVal)
+              if (parsed) dateStr = `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`
+            } else if (typeof cellVal === 'string' && cellVal.trim()) {
+              if (/regional convention/i.test(cellVal)) continue
+              dateStr = parseDeckhandDate(cellVal)
+            }
+            if (dateStr) colDates.push({ colIdx: c, date: dateStr })
           }
-          importedMap.set(date, assignments)
+          if (colDates.length === 0) continue
+
+          for (const { date } of colDates) {
+            if (!importedMap.has(date)) importedMap.set(date, {})
+          }
+
+          // Dynamically scan rows below this header for role labels in col A.
+          // Mic 2 has no label — it's the first blank-label row immediately after Microphones.
+          const roleRowMap: Array<{ field: string; rowIdx: number }> = []
+          let lastWasMic1 = false
+
+          for (let r = headerRowIdx + 1; r < nextHeaderRowIdx; r++) {
+            const row = rows[r] as unknown[]
+            const labelRaw = typeof row[0] === 'string' ? row[0].trim() : ''
+            const label = labelRaw.toLowerCase()
+
+            if (lastWasMic1 && labelRaw === '') {
+              roleRowMap.push({ field: 'mic2', rowIdx: r })
+              lastWasMic1 = false
+              continue
+            }
+            lastWasMic1 = false
+
+            if (label in LABEL_MAP) {
+              roleRowMap.push({ field: LABEL_MAP[label], rowIdx: r })
+              if (LABEL_MAP[label] === 'mic1') lastWasMic1 = true
+            }
+          }
+
+          // For each date column, read values from the dynamically located role rows
+          for (const { colIdx, date } of colDates) {
+            const entry = importedMap.get(date)!
+
+            for (const { field, rowIdx } of roleRowMap) {
+              const raw = getCell(rows[rowIdx] as unknown[], colIdx)
+
+              if (field === 'backup') {
+                // Any cell value (even "unassigned") means the slot exists; blank means no slot
+                entry.backupRequired = raw !== ''
+                const pid = findPersonId(raw)
+                if (pid !== undefined) entry.backup = pid
+              } else if (field === 'reader' || field === 'entranceAttendant' || field === 'auditoriumAttendant') {
+                const val = findNonAvName(raw)
+                if (val !== undefined) entry[field] = val
+              } else {
+                const val = findPersonId(raw)
+                if (val !== undefined) (entry as Record<string, string | undefined>)[field] = val
+              }
+            }
+          }
         }
 
         if (importedMap.size === 0) {
@@ -393,7 +452,6 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
             return
           }
 
-          // Resolve raw name strings → person IDs
           const SKIP = new Set(['regional convention', 'unassigned', ''])
           const findId = (name: string | undefined): string | undefined => {
             if (!name) return undefined
@@ -401,13 +459,21 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
             if (SKIP.has(n)) return undefined
             return people.find(p => p.name.toLowerCase() === n)?.id
           }
+          // Non-AV roles: fall back to raw name string if person isn't in roster
+          const findNonAvId = (name: string | undefined): string | undefined => {
+            if (!name) return undefined
+            const n = name.toLowerCase()
+            if (SKIP.has(n)) return undefined
+            return people.find(p => p.name.toLowerCase() === n)?.id ?? name
+          }
 
           const resolvedMap = new Map<string, ImportedAssignments>()
           for (const [date, raw] of pdfMap) {
+            const dow = new Date(date).getDay()
             resolvedMap.set(date, {
-              reader:              findId(raw.reader),
-              entranceAttendant:   findId(raw.entranceAttendant),
-              auditoriumAttendant: findId(raw.auditoriumAttendant),
+              reader:              findNonAvId(raw.reader),
+              entranceAttendant:   findNonAvId(raw.entranceAttendant),
+              auditoriumAttendant: findNonAvId(raw.auditoriumAttendant),
               platform:            findId(raw.platform),
               mic1:                findId(raw.mic1),
               mic2:                findId(raw.mic2),
@@ -415,6 +481,7 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
               video:               findId(raw.video),
               backup:              findId(raw.backup),
               vc:                  findId(raw.vc),
+              backupRequired:      dow === 6 || raw.backup !== undefined,
             })
           }
 
@@ -425,15 +492,6 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
         }
       }
       reader.readAsArrayBuffer(file)
-    } else if (isCsv) {
-      reader.onload = (ev) => {
-        const text = ev.target!.result as string
-        const workbook = XLSX.read(text, { type: 'string' })
-        const sheet = workbook.Sheets[workbook.SheetNames[0]]
-        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as unknown[][]
-        processRows(rows)
-      }
-      reader.readAsText(file)
     } else {
       reader.onload = (ev) => {
         const data = new Uint8Array(ev.target!.result as ArrayBuffer)
@@ -477,15 +535,34 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
             <PlusCircle className="h-4 w-4 mr-1" />
             Add Meeting
           </Button>
-          <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}>
+          <button
+            type="button"
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            onClick={async () => {
+              try {
+                const [handle] = await window.showOpenFilePicker({
+                  types: [{ description: 'Deckhand Schedules', accept: { 'application/pdf': ['.pdf'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }],
+                  multiple: false,
+                })
+                importFile(await handle.getFile())
+              } catch (err) {
+                if (err instanceof Error && err.name !== 'AbortError') toast.error('Could not open file.')
+              }
+            }}
+          >
             <Upload className="h-4 w-4 mr-1" />
             Import Schedule
-          </Button>
-          <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv,.pdf" className="hidden" onChange={handleImport} />
+          </button>
         </div>
-        <Button size="sm" variant="ghost" onClick={handleExport} className="text-muted-foreground">
-          Export CSV
-        </Button>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Switch id="show-completed" checked={showCompleted} onCheckedChange={setShowCompleted} />
+            <Label htmlFor="show-completed" className="text-sm text-muted-foreground cursor-pointer">Show completed</Label>
+          </div>
+          <Button size="sm" variant="ghost" onClick={handleExport} className="text-muted-foreground">
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       {/* Mobile card layout */}
@@ -515,27 +592,53 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                     const cooldownClass = getCooldownClass(meeting, role, currentId)
                     const eligible = getPeopleForRole(people, role)
 
+                    if (role === 'backup' && !meeting.backupRequired && meeting.status !== 'Completed') {
+                      return (
+                        <div key={role} className="grid grid-cols-2 gap-2 items-center rounded p-1">
+                          <span className="text-xs font-medium text-muted-foreground">{ROLE_LABELS[role]}</span>
+                          <button
+                            className="h-8 px-3 text-xs text-left text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors border border-dashed border-muted-foreground/20 rounded-md"
+                            onClick={() => handleToggleBackupRequired(meeting.id, true)}
+                            disabled={meeting.status === 'Cancelled'}
+                          >
+                            Tap to add slot
+                          </button>
+                        </div>
+                      )
+                    }
+
                     return (
                       <div key={role} className={`grid grid-cols-2 gap-2 items-center rounded p-1 ${cooldownClass}`}>
                         <span className="text-xs font-medium text-muted-foreground">{ROLE_LABELS[role]}</span>
                         {meeting.status === 'Completed' ? (
-                          <span className="text-sm">{getPersonName(people, meeting.actual[role] || meeting.planned[role])}</span>
+                          <span className="text-sm">{getPersonName(people, meeting.completions[role]?.actual || meeting.planned[role]) || '—'}</span>
                         ) : (
-                          <Select
-                            value={currentId ?? '__none__'}
-                            onValueChange={v => handleRoleAssign(meeting.id, role, v === '__none__' ? '' : v)}
-                            disabled={meeting.status === 'Cancelled'}
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue placeholder="Assign..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__none__">— Unassigned —</SelectItem>
-                              {eligible.map(p => (
-                                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <div className={role === 'backup' ? 'flex items-center gap-1' : undefined}>
+                            <Select
+                              value={currentId ?? '__none__'}
+                              onValueChange={v => handleRoleAssign(meeting.id, role, v === '__none__' ? '' : v)}
+                              disabled={meeting.status === 'Cancelled'}
+                            >
+                              <SelectTrigger className="h-8 text-xs flex-1">
+                                <SelectValue placeholder="Assign..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none__">— Unassigned —</SelectItem>
+                                {eligible.map(p => (
+                                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {role === 'backup' && !currentId && meeting.status === 'Planned' && (
+                              <button
+                                onClick={() => handleToggleBackupRequired(meeting.id, false)}
+                                className="shrink-0 p-1 text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
+                                title="Remove backup slot"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     )
@@ -547,7 +650,7 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                   {NON_AV_ROLES.map(role => (
                     <div key={role} className="grid grid-cols-2 gap-2 items-center opacity-60">
                       <span className="text-xs font-medium text-muted-foreground">{ROLE_LABELS[role]}</span>
-                      <span className="text-sm text-muted-foreground">{getPersonName(people, meeting.planned[role]) || '—'}</span>
+                      <span className="text-sm text-muted-foreground">{getPersonName(people, meeting.planned[role]) || meeting.planned[role] || '—'}</span>
                     </div>
                   ))}
 
@@ -589,9 +692,9 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
       </div>
 
       {/* Desktop table layout */}
-      <div className="hidden md:block overflow-x-auto">
+      <div className="hidden md:block">
         <table className="w-full min-w-[1200px] text-sm border-collapse">
-          <thead className="sticky top-0 z-10 bg-background border-b border-border">
+          <thead className="sticky top-[104px] z-10 bg-background border-b border-border">
             <tr>
               <th className="text-left p-2 font-medium text-muted-foreground whitespace-nowrap w-28">Date</th>
               <th className="text-left p-2 font-medium text-muted-foreground w-24">Type</th>
@@ -624,33 +727,57 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                   const cooldownClass = getCooldownClass(meeting, role, currentId)
                   const eligible = getPeopleForRole(people, role)
 
+                  if (role === 'backup' && !meeting.backupRequired && meeting.status !== 'Completed') {
+                    return (
+                      <td key={role} className="p-1">
+                        <button
+                          className="h-7 w-full px-2 text-xs text-left text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
+                          onClick={() => handleToggleBackupRequired(meeting.id, true)}
+                          disabled={meeting.status === 'Cancelled'}
+                          title="Click to add backup slot"
+                        >—</button>
+                      </td>
+                    )
+                  }
+
                   return (
                     <td key={role} className={`p-1 ${cooldownClass}`}>
                       {meeting.status === 'Completed' ? (
-                        <span className="text-sm px-1">{getPersonName(people, meeting.actual[role] || meeting.planned[role]) || '—'}</span>
+                        <span className="text-sm px-1">{getPersonName(people, meeting.completions[role]?.actual || meeting.planned[role]) || '—'}</span>
                       ) : (
-                        <Select
-                          value={currentId ?? '__none__'}
-                          onValueChange={v => handleRoleAssign(meeting.id, role, v === '__none__' ? '' : v)}
-                          disabled={meeting.status === 'Cancelled'}
-                        >
-                          <SelectTrigger className="h-7 text-xs border-0 shadow-none focus:ring-0 bg-transparent">
-                            <SelectValue placeholder="—" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">— Unassigned —</SelectItem>
-                            {eligible.map(p => (
-                              <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <div className={role === 'backup' ? 'flex items-center' : undefined}>
+                          <Select
+                            value={currentId ?? '__none__'}
+                            onValueChange={v => handleRoleAssign(meeting.id, role, v === '__none__' ? '' : v)}
+                            disabled={meeting.status === 'Cancelled'}
+                          >
+                            <SelectTrigger className="h-7 text-xs border-0 shadow-none focus:ring-0 bg-transparent flex-1 min-w-0">
+                              <SelectValue placeholder="—" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">— Unassigned —</SelectItem>
+                              {eligible.map(p => (
+                                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {role === 'backup' && !currentId && meeting.status === 'Planned' && (
+                            <button
+                              onClick={() => handleToggleBackupRequired(meeting.id, false)}
+                              className="shrink-0 p-0.5 text-muted-foreground/20 hover:text-muted-foreground/60 transition-colors"
+                              title="Remove backup slot"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
                   )
                 })}
                 {NON_AV_ROLES.map(role => (
                   <td key={role} className="p-2 opacity-60 text-muted-foreground">
-                    {getPersonName(people, meeting.planned[role]) || '—'}
+                    {getPersonName(people, meeting.planned[role]) || meeting.planned[role] || '—'}
                   </td>
                 ))}
                 <td className="p-1">

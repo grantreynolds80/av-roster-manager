@@ -16,26 +16,32 @@ export function AssignmentHistoryModal({ open, person, meetings, onClose }: Assi
 
   const history = meetings
     .filter(m => {
-      const allAssignments = [
-        ...AV_ROLES.map(r => (m.status === 'Completed' ? m.actual[r] : m.planned[r])),
-        ...NON_AV_ROLES.map(r => m.planned[r]),
-      ]
-      return allAssignments.includes(person.id)
+      if (m.status === 'Completed') {
+        return AV_ROLES.some(r => {
+          const c = m.completions[r]
+          return c && c.actual === person.id
+        }) || NON_AV_ROLES.some(r => m.planned[r] === person.id)
+      }
+      return [...AV_ROLES, ...NON_AV_ROLES].some(
+        r => (m.planned as Record<string, string | undefined>)[r] === person.id
+      )
     })
     .sort((a, b) => b.date.localeCompare(a.date))
 
   const getRolesForPerson = (meeting: Meeting) => {
     const roles: string[] = []
-    const assignments = meeting.status === 'Completed' ? meeting.actual : meeting.planned
-    for (const role of AV_ROLES) {
-      if ((assignments as Record<string, string | undefined>)[role] === person.id) {
-        roles.push(ROLE_LABELS[role])
+    if (meeting.status === 'Completed') {
+      for (const role of AV_ROLES) {
+        const c = meeting.completions[role]
+        if (c && c.actual === person.id) roles.push(ROLE_LABELS[role])
+      }
+    } else {
+      for (const role of AV_ROLES) {
+        if (meeting.planned[role] === person.id) roles.push(ROLE_LABELS[role])
       }
     }
     for (const role of NON_AV_ROLES) {
-      if (meeting.planned[role] === person.id) {
-        roles.push(ROLE_LABELS[role])
-      }
+      if (meeting.planned[role] === person.id) roles.push(ROLE_LABELS[role])
     }
     return roles
   }

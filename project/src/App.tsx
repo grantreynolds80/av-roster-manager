@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button'
 import { ModeToggle } from '@/components/mode-toggle'
 import { Toaster } from '@/components/ui/sonner'
 import { Settings } from 'lucide-react'
-import type { Meeting, Person, AppSettings } from './types'
+import type { Meeting, Person, AppSettings, AvRole } from './types'
+import { AV_ROLES } from './types'
 import { loadPeople, savePeople, loadMeetings, saveMeetings, loadSettings, saveSettings, isInitialized, markInitialized } from './lib/storage'
 import { SEED_PEOPLE, SEED_MEETINGS } from './lib/seed'
 import { RosterTab } from './components/RosterTab'
@@ -31,7 +32,26 @@ export function App() {
       setSettings(DEFAULT_SETTINGS)
     } else {
       setPeople(loadPeople() ?? SEED_PEOPLE)
-      setMeetings(loadMeetings() ?? SEED_MEETINGS)
+      // Cast to any[] to safely read legacy fields (actual, missing backupRequired)
+      const rawMeetings = (loadMeetings() ?? SEED_MEETINGS) as any[]
+      setMeetings(rawMeetings.map((m: any): Meeting => {
+        const backupRequired = m.backupRequired !== undefined
+          ? m.backupRequired
+          : (m.type === 'Weekend' || !!m.planned?.backup || !!m.actual?.backup)
+
+        // Migrate old `actual` object → per-role `completions`
+        let completions: Partial<Record<AvRole, { actual: string | null; noshow: boolean }>> = m.completions ?? {}
+        if (!m.completions && m.status === 'Completed' && m.actual) {
+          for (const role of AV_ROLES) {
+            if (role === 'backup' && !backupRequired) continue
+            const actualId: string | undefined = m.actual[role]
+            const plannedId: string | undefined = m.planned?.[role]
+            completions[role] = { actual: actualId ?? plannedId ?? '', noshow: false }
+          }
+        }
+
+        return { ...m, backupRequired, completions }
+      }))
       setSettings(loadSettings() ?? DEFAULT_SETTINGS)
     }
   }, [])
@@ -53,7 +73,7 @@ export function App() {
 
   return (
     <div className="min-h-svh bg-background">
-      <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-20 border-b border-border bg-background">
         <div className="mx-auto max-w-screen-2xl px-4 h-14 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center">
@@ -71,12 +91,14 @@ export function App() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-screen-2xl px-4 py-6">
+      <main className="mx-auto max-w-screen-2xl px-4 pt-0 pb-6">
         <Tabs defaultValue="roster" className="space-y-6">
-          <TabsList className="h-9">
-            <TabsTrigger value="roster" className="text-sm">Roster</TabsTrigger>
-            <TabsTrigger value="dashboard" className="text-sm">Dashboard</TabsTrigger>
-          </TabsList>
+          <div className="sticky top-14 z-10 bg-background -mx-4 px-4 border-b border-border flex items-center h-12">
+            <TabsList className="h-9">
+              <TabsTrigger value="roster" className="text-sm">Roster</TabsTrigger>
+              <TabsTrigger value="dashboard" className="text-sm">Dashboard</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="roster">
             <RosterTab

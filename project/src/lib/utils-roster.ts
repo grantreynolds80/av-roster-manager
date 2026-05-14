@@ -1,5 +1,5 @@
 import { format, parseISO, differenceInDays } from 'date-fns'
-import type { Meeting, Person, AvRole, AnyRole } from '../types'
+import type { Meeting, Person, AvRole, AnyRole, RoleCompletion } from '../types'
 import { AV_ROLES, NON_AV_ROLES } from '../types'
 
 export function formatDate(dateStr: string): string {
@@ -55,7 +55,18 @@ export function getPersonRoleInMeeting(meeting: Meeting, personId: string): AnyR
   return null
 }
 
-// Cooldown check for AV roles
+// Derive meeting status from completions. Preserves 'Cancelled'.
+export function deriveStatus(meeting: Meeting): Meeting['status'] {
+  if (meeting.status === 'Cancelled') return 'Cancelled'
+  const required = AV_ROLES.filter(r => r !== 'backup' || meeting.backupRequired)
+  const allDone = required.every(r => {
+    const c = meeting.completions[r]
+    return c !== undefined && c.actual !== null
+  })
+  return allDone ? 'Completed' : 'Planned'
+}
+
+// Cooldown check — based on actual completions only (no-shows don't count)
 export interface CooldownResult {
   level: 'red' | 'amber' | null
   reason?: string
@@ -77,21 +88,20 @@ export function checkCooldown(
     const mDate = parseISO(m.date)
     const daysDiff = Math.abs(differenceInDays(meetingDate, mDate))
 
-    // Check actual assignments for completed meetings
-    const actual = m.actual as Record<string, string | undefined>
-    const planned = m.planned as Record<string, string | undefined>
-
-    // Red: same role within 7 days
+    // Red: same role within 7 days (actual only — no-shows don't count)
     if (daysDiff <= 7) {
-      const assignedRole = AV_ROLES.find(r => actual[r] === personId || planned[r] === personId)
-      if (assignedRole === role) {
-        return { level: 'red', reason: `Same role within 7 days` }
+      const c = m.completions[role]
+      if (c && c.actual === personId) {
+        return { level: 'red', reason: 'Same role within 7 days' }
       }
     }
 
-    // Amber: any AV role within cooldown days
+    // Amber: any AV role within cooldown days (actual only)
     if (daysDiff <= cooldownDays) {
-      const inAv = AV_ROLES.some(r => actual[r] === personId)
+      const inAv = AV_ROLES.some(r => {
+        const c = m.completions[r]
+        return c && c.actual === personId
+      })
       if (inAv) {
         return { level: 'amber', reason: `Assigned within ${cooldownDays} days` }
       }
@@ -136,18 +146,28 @@ export function computeStats(meetings: Meeting[], people: Person[]): PersonStats
     const mDate = parseISO(meeting.date)
     if (mDate < cutoff) continue
 
-    // Use actual for completed, planned for others
-    const assignments = meeting.status === 'Completed' ? meeting.actual : meeting.planned
-
-    for (const role of AV_ROLES) {
-      const id = (assignments as Record<string, string | undefined>)[role]
-      if (id && statsMap.has(id)) {
-        const s = statsMap.get(id)!
-        s[role] = (s[role] as number) + 1
-        s.total = (s.total as number) + 1
+    if (meeting.status === 'Completed') {
+      // AV roles: count the actual person (fill-ins count, no-shows don't)
+      for (const role of AV_ROLES) {
+        const c = meeting.completions[role]
+        if (c && c.actual) {
+          const s = statsMap.get(c.actual)
+          if (s) { s[role] = (s[role] as number) + 1; s.total = (s.total as number) + 1 }
+        }
+      }
+    } else {
+      // Planned meetings: count planned assignments
+      for (const role of AV_ROLES) {
+        const id = meeting.planned[role]
+        if (id && statsMap.has(id)) {
+          const s = statsMap.get(id)!
+          s[role] = (s[role] as number) + 1
+          s.total = (s.total as number) + 1
+        }
       }
     }
 
+    // Non-AV roles always from planned
     for (const role of NON_AV_ROLES) {
       const id = (meeting.planned as Record<string, string | undefined>)[role]
       if (id && statsMap.has(id)) {
@@ -175,7 +195,9 @@ export function getSuggestions(
   const assignedInMeeting = getAllAssignedIds(targetMeeting)
   const meetingDate = parseISO(targetMeeting.date)
 
-  return AV_ROLES.map(role => {
+  const roles = targetMeeting.backupRequired ? AV_ROLES : AV_ROLES.filter(r => r !== 'backup')
+
+  return roles.map(role => {
     const eligible = people.filter(p =>
       p[role] &&
       p.availability_status === 'Available' &&
@@ -189,8 +211,8 @@ export function getSuggestions(
         if (m.status !== 'Completed') continue
         const mDate = parseISO(m.date)
         if (mDate >= meetingDate) continue
-        const actual = m.actual as Record<string, string | undefined>
-        if (actual[role] === person.id) {
+        const c = m.completions[role]
+        if (c && c.actual === person.id) {
           const d = differenceInDays(meetingDate, mDate)
           if (d < daysSinceLast) daysSinceLast = d
         }
@@ -199,7 +221,6 @@ export function getSuggestions(
     })
 
     ranked.sort((a, b) => {
-      // Higher daysSinceLast = more overdue = ranked first; Infinity means never assigned
       if (a.daysSinceLast === Infinity && b.daysSinceLast === Infinity) return 0
       if (a.daysSinceLast === Infinity) return -1
       if (b.daysSinceLast === Infinity) return 1
@@ -221,13 +242,18 @@ export function exportCSV(meetings: Meeting[], people: Person[]): string {
 
   const rows = meetings.map(m => {
     const pn = (id?: string) => getPersonName(people, id)
+    const actualName = (role: AvRole) => {
+      const c = m.completions[role]
+      if (!c || c.actual === null) return ''
+      return getPersonName(people, c.actual || undefined)
+    }
     return [
       formatDate(m.date), m.type, m.status,
       pn(m.planned.platform), pn(m.planned.mic1), pn(m.planned.mic2), pn(m.planned.audio),
       pn(m.planned.video), pn(m.planned.backup), pn(m.planned.vc),
       pn(m.planned.reader), pn(m.planned.entranceAttendant), pn(m.planned.auditoriumAttendant),
-      pn(m.actual.platform), pn(m.actual.mic1), pn(m.actual.mic2), pn(m.actual.audio),
-      pn(m.actual.video), pn(m.actual.backup), pn(m.actual.vc),
+      actualName('platform'), actualName('mic1'), actualName('mic2'), actualName('audio'),
+      actualName('video'), actualName('backup'), actualName('vc'),
     ].map(v => `"${v}"`).join(',')
   })
 

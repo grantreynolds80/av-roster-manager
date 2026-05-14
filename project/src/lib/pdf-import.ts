@@ -12,26 +12,31 @@ interface TextItem {
   y: number
 }
 
-// Roles that map to two consecutive people (first mic, second mic)
-const TWO_PERSON_ROLES = new Set(['Microphones', 'Welcoming'])
+// Roles that map to two consecutive people (first mic, second mic) — lowercase
+const TWO_PERSON_ROLES = new Set(['microphones', 'welcoming'])
 
-// Map role-label text → assignment key(s)
-// Returns one key or two keys (for two-person rows)
+// Map role-label text → assignment key(s) (keys are lowercased for case-insensitive lookup)
 const ROLE_MAP: Record<string, string[]> = {
-  Chairman:                   ['chairman'],
-  Reader:                     ['reader'],
-  'Entrance Attendant':       ['entranceAttendant'],
-  'Auditorium Attendant':     ['auditoriumAttendant'],
-  Welcoming:                  ['welcoming1', 'welcoming2'],
-  Platform:                   ['platform'],
-  Microphones:                ['mic1', 'mic2'],
-  Security:                   ['security'],
-  'Videoconference Attendant':['vc'],
-  'Audio Operator':           ['audio'],
-  'Video Operator':           ['video'],
-  'Audio/Video Operator':     ['backup'],
-  Hospitality:                ['hospitality'],
-  'Watchtower Conductor':     ['watchtowerConductor'],
+  'chairman':                    ['chairman'],
+  'reader':                      ['reader'],
+  'bible reading':               ['reader'],
+  'entrance attendant':          ['entranceAttendant'],
+  'auditorium attendant':        ['auditoriumAttendant'],
+  'hall attendant':              ['auditoriumAttendant'],
+  'welcoming':                   ['welcoming1', 'welcoming2'],
+  'platform':                    ['platform'],
+  'microphones':                 ['mic1', 'mic2'],
+  'security':                    ['security'],
+  'videoconference attendant':   ['vc'],
+  'audio operator':              ['audio'],
+  'video operator':              ['video'],
+  'audio/video operator':        ['backup'],
+  'hospitality':                 ['hospitality'],
+  'watchtower conductor':        ['watchtowerConductor'],
+}
+
+function lookupRole(label: string): string[] | undefined {
+  return ROLE_MAP[label.toLowerCase()]
 }
 
 export type DeckhandAssignments = {
@@ -59,17 +64,23 @@ const SKIP_VALUES = new Set([
 
 const DOW_RE = /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/i
 
+const MONTH_NAMES = ['january','february','march','april','may','june','july','august','september','october','november','december']
+
 function parseDeckhandDateStr(raw: string): string | undefined {
   if (!raw) return undefined
   const firstLine = raw.split(/[\n\r]/)[0].trim()
   const withoutDow = firstLine.replace(/^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s*/i, '').trim()
   if (!withoutDow) return undefined
+  const m = withoutDow.match(/^([A-Za-z]+)\s+(\d{1,2})/)
+  if (!m) return undefined
+  const monthIdx = MONTH_NAMES.indexOf(m[1].toLowerCase())
+  const day = parseInt(m[2], 10)
+  if (monthIdx < 0 || isNaN(day)) return undefined
   const now = new Date()
-  for (const year of [now.getFullYear(), now.getFullYear() + 1]) {
-    const attempt = new Date(`${withoutDow} ${year}`)
-    if (!isNaN(attempt.getTime())) return attempt.toISOString().split('T')[0]
-  }
-  return undefined
+  const month = String(monthIdx + 1).padStart(2, '0')
+  const dayStr = String(day).padStart(2, '0')
+  const year = (monthIdx + 1 < now.getMonth() + 1) ? now.getFullYear() + 1 : now.getFullYear()
+  return `${year}-${month}-${dayStr}`
 }
 
 async function extractTextItems(arrayBuffer: ArrayBuffer): Promise<TextItem[]> {
@@ -131,14 +142,14 @@ function normalizeStr(s: string): string {
   return s.replace(/\s+/g, ' ').trim()
 }
 
-// Merge short fragments that are likely split multi-word role labels or names
-// PDF may emit "Videoconference" and "Attendant" as separate items in the same row
-function mergeCloseFragments(row: Row, xGapThreshold = 6): Row {
+// Merge adjacent PDF text fragments that belong to the same logical item
+// (e.g. "Videoconference" + "Attendant" emitted as separate runs).
+// 6pt/char estimate; threshold kept tight so cross-column names don't merge.
+function mergeCloseFragments(row: Row): Row {
   const merged: TextItem[] = []
   for (const item of row.items) {
     const last = merged[merged.length - 1]
-    // Estimate character width ~ 6pt for average text
-    if (last && item.x - (last.x + last.str.length * 5.5) < xGapThreshold) {
+    if (last && item.x - (last.x + last.str.length * 6) < 4) {
       last.str = last.str + ' ' + item.str
     } else {
       merged.push({ ...item })
@@ -160,27 +171,49 @@ export async function parseDeckhandPDF(
   type Block = { rowIndex: number; columns: DateColumn[] }
   const blocks: Block[] = []
 
+  const MONTH_RE = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i
+
   for (let ri = 0; ri < rows.length; ri++) {
     const row = rows[ri]
-    if (row.items.length < 2) continue
-    // Check if any non-first item matches DOW
-    const dateItems = row.items.filter((item, idx) => idx > 0 && DOW_RE.test(normalizeStr(item.str)))
+    if (row.items.length === 0) continue
+    const dateItems = row.items.filter(item => DOW_RE.test(normalizeStr(item.str)))
     if (dateItems.length === 0) continue
+
+    const nextRow = ri + 1 < rows.length ? rows[ri + 1] : null
+    let usedNextRow = false
 
     const columns: DateColumn[] = []
     for (const item of dateItems) {
-      // The date might be split across the same row due to line-wrapping in PDF;
-      // look for the next item in the same x-vicinity that has "June"/"July"/etc.
-      const monthItems = row.items.filter(
-        it => it !== item && Math.abs(it.x - item.x) < 30 && /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i.test(normalizeStr(it.str))
-      )
-      const combined = monthItems.length > 0
-        ? `${normalizeStr(item.str)} ${normalizeStr(monthItems[0].str)}`
-        : normalizeStr(item.str)
-      const date = parseDeckhandDateStr(combined)
+      const itemStr = normalizeStr(item.str)
+      // Case 1: item itself contains "Wednesday May 6"
+      let date = parseDeckhandDateStr(itemStr)
+
+      if (!date) {
+        // Case 2: month+day is a sibling item in the same row at a nearby x
+        const sameRowMonth = row.items.find(
+          it => it !== item && Math.abs(it.x - item.x) < 60 && MONTH_RE.test(normalizeStr(it.str))
+        )
+        if (sameRowMonth) date = parseDeckhandDateStr(`${itemStr} ${normalizeStr(sameRowMonth.str)}`)
+      }
+
+      if (!date && nextRow) {
+        // Case 3: DOW on this row, "May 6" on the next row at the same x column
+        const nextRowMonth = nextRow.items.find(
+          it => Math.abs(it.x - item.x) < 60 && MONTH_RE.test(normalizeStr(it.str))
+        )
+        if (nextRowMonth) {
+          date = parseDeckhandDateStr(`${itemStr} ${normalizeStr(nextRowMonth.str)}`)
+          if (date) usedNextRow = true
+        }
+      }
+
       if (date) columns.push({ x: item.x, date })
     }
-    if (columns.length > 0) blocks.push({ rowIndex: ri, columns })
+
+    if (columns.length > 0) {
+      // If month row was on the next line, start Phase 2 scanning after it
+      blocks.push({ rowIndex: usedNextRow ? ri + 1 : ri, columns })
+    }
   }
 
   if (blocks.length === 0) return new Map()
@@ -218,34 +251,48 @@ export async function parseDeckhandPDF(
     let pendingTwoPersonRole: string[] | null = null
 
     for (let ri = block.rowIndex + 1; ri < nextBlockStart; ri++) {
-      const row = rows[ri]
-      if (row.items.length === 0) continue
+      const rawRow = rawRows[ri]
+      if (rawRow.items.length === 0) continue
 
-      const mergedRow = row // already merged above
+      // Use raw row for everything — avoids merging role label with adjacent name columns.
+      // Items left of the date columns are role label fragments; items at/right are names.
+      const roleLabelItems = rawRow.items.filter(it => it.x < leftmostX - 5)
+      const nameItems      = rawRow.items.filter(it => it.x >= leftmostX - 5)
 
-      // Classify items: leftmost is the role label (if x < leftmostX + some margin)
-      // Others are names
-      const roleItem = mergedRow.items.find(it => it.x < leftmostX - 5)
-      const nameItems = mergedRow.items.filter(it => it.x >= leftmostX - 5)
+      if (roleLabelItems.length > 0) {
+        // Progressively combine leftmost items until we match a known role label
+        // (handles multi-word labels like "Videoconference Attendant" split across items)
+        let matchedLabel = ''
+        let matchedKeys: string[] | undefined
+        for (let n = 1; n <= Math.min(3, roleLabelItems.length); n++) {
+          const candidate = roleLabelItems.slice(0, n).map(it => normalizeStr(it.str)).join(' ')
+          const k = lookupRole(candidate)
+          if (k) { matchedLabel = candidate; matchedKeys = k; break }
+        }
 
-      if (roleItem) {
-        const roleLabel = normalizeStr(roleItem.str)
-        const keys = ROLE_MAP[roleLabel]
-        if (keys && TWO_PERSON_ROLES.has(roleLabel)) {
-          // First row of a two-person role
-          pendingTwoPersonRole = keys
-          // Assign keys[0] from this row
+        if (matchedKeys && TWO_PERSON_ROLES.has(matchedLabel.toLowerCase())) {
+          // Collect up to 2 name items per date column (some PDFs put both on the same row)
+          const colBuckets = new Map<string, string[]>()
           for (const nameItem of nameItems) {
             const col = findNearestColumn(nameItem.x)
             if (!col) continue
             const name = normalizeStr(nameItem.str)
             if (SKIP_VALUES.has(name.toLowerCase())) continue
-            const entry = result.get(col.date) ?? {}
-            const field = keys[0] as keyof DeckhandAssignments
-            if (USED_FIELDS.has(field) && !entry[field]) entry[field] = name
-            result.set(col.date, entry)
+            const bucket = colBuckets.get(col.date) ?? []
+            if (bucket.length < 2) { bucket.push(name); colBuckets.set(col.date, bucket) }
           }
-        } else if (keys) {
+
+          for (const [date, names] of colBuckets) {
+            const entry = result.get(date) ?? {}
+            for (let i = 0; i < names.length && i < matchedKeys.length; i++) {
+              const field = matchedKeys[i] as keyof DeckhandAssignments
+              if (USED_FIELDS.has(field) && !entry[field]) entry[field] = names[i]
+            }
+            result.set(date, entry)
+          }
+          // Keep pendingTwoPersonRole in case the PDF puts the 2nd person on the next row
+          pendingTwoPersonRole = matchedKeys
+        } else if (matchedKeys) {
           pendingTwoPersonRole = null
           for (const nameItem of nameItems) {
             const col = findNearestColumn(nameItem.x)
@@ -253,7 +300,7 @@ export async function parseDeckhandPDF(
             const name = normalizeStr(nameItem.str)
             if (SKIP_VALUES.has(name.toLowerCase())) continue
             const entry = result.get(col.date) ?? {}
-            const field = keys[0] as keyof DeckhandAssignments
+            const field = matchedKeys[0] as keyof DeckhandAssignments
             if (USED_FIELDS.has(field) && !entry[field]) entry[field] = name
             result.set(col.date, entry)
           }
@@ -261,7 +308,7 @@ export async function parseDeckhandPDF(
           pendingTwoPersonRole = null
         }
       } else if (pendingTwoPersonRole && nameItems.length > 0) {
-        // Continuation row (blank role label) — second person of two-person role
+        // Continuation row — second person of two-person role
         const keys = pendingTwoPersonRole
         for (const nameItem of nameItems) {
           const col = findNearestColumn(nameItem.x)
