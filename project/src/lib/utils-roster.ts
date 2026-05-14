@@ -349,7 +349,17 @@ export interface GenerateResult {
 }
 
 export function generateNextMonthMeetings(existingMeetings: Meeting[], referenceDate: Date): GenerateResult {
-  const nextMonthStart = startOfMonth(addMonths(referenceDate, 1))
+  // Build a set of months (YYYY-MM) that already have at least one meeting
+  const monthsWithMeetings = new Set(existingMeetings.map(m => m.date.slice(0, 7)))
+
+  // Scan forward from next month until we find one with no meetings (max 24 months)
+  let candidate = addMonths(startOfMonth(referenceDate), 1)
+  for (let i = 0; i < 24; i++) {
+    if (!monthsWithMeetings.has(format(candidate, 'yyyy-MM'))) break
+    candidate = addMonths(candidate, 1)
+  }
+
+  const nextMonthStart = candidate
   const nextMonthEnd = endOfMonth(nextMonthStart)
   const monthLabel = format(nextMonthStart, 'MMMM yyyy')
 
