@@ -482,9 +482,9 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
       </div>
 
       {/* Desktop table layout */}
-      <div className="hidden md:block overflow-x-auto">
+      <div className="hidden md:block overflow-auto" style={{ maxHeight: 'calc(100dvh - 11rem)' }}>
         <table className="w-full min-w-[1200px] text-sm border-separate border-spacing-0">
-          <thead className="z-[2] bg-muted">
+          <thead className="sticky top-0 z-[2] bg-muted">
             <tr>
               <th className="sticky left-0 z-[3] bg-muted border-b border-border text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap w-32 min-w-[128px]">Date</th>
               <th className="sticky left-32 z-[3] bg-muted border-b border-border text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap w-20 min-w-[80px]">Type</th>
