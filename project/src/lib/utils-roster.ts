@@ -93,46 +93,50 @@ export function checkCooldown(
   meetings: Meeting[],
   meeting: Meeting,
   personId: string,
-  role: AvRole,
+  _role: AvRole,
   cooldownDays: number
 ): CooldownResult {
   const meetingDate = parseISO(meeting.date)
 
-  // Returns true if personId has an effective assignment in role r for meeting m.
-  // Completed → use actual (fill-ins count, no-shows don't because actual ≠ planned person).
-  // Planned   → use planned assignments.
-  // Backup    → only counts when backupRequired is true.
-  const isAssigned = (m: Meeting, r: AvRole): boolean => {
-    if (r === 'backup' && !m.backupRequired) return false
+  // Returns true if personId appears in any AV role for meeting m.
+  // Planned meetings: check planned fields.
+  // Completed meetings: check actual completions — fill-ins count (actual = their ID),
+  //   no-shows don't (actual ≠ the person who bailed).
+  // Backup only counts when backupRequired is true.
+  const isPersonInMeeting = (m: Meeting): boolean => {
     if (m.status === 'Completed') {
-      const c = m.completions[r]
-      return !!(c && c.actual === personId)
+      return AV_ROLES.some(r => {
+        if (r === 'backup' && !m.backupRequired) return false
+        const c = m.completions[r]
+        return c !== undefined && c.actual !== null && c.actual !== '' && c.actual === personId
+      })
     }
-    return m.planned[r] === personId
+    return AV_ROLES.some(r => {
+      if (r === 'backup' && !m.backupRequired) return false
+      return m.planned[r] === personId
+    })
   }
 
+  let hasRed = false
   let hasAmber = false
 
   for (const m of meetings) {
-    if (m.id === meeting.id || m.status === 'Cancelled') continue
+    if (m.id === meeting.id) continue
+    if (m.status === 'Cancelled') continue
+    if (!isPersonInMeeting(m)) continue
 
     const daysDiff = Math.abs(differenceInDays(meetingDate, parseISO(m.date)))
-    if (daysDiff > cooldownDays) continue
 
-    // Red: same role within 7 days (bidirectional)
-    if (daysDiff <= 7 && isAssigned(m, role)) {
-      return { level: 'red', reason: 'Same role within 7 days' }
-    }
-
-    // Amber: any AV role within cooldown window
-    if (!hasAmber && AV_ROLES.some(r => isAssigned(m, r))) {
+    if (daysDiff <= 7) {
+      hasRed = true
+    } else if (daysDiff <= cooldownDays) {
       hasAmber = true
     }
   }
 
-  return hasAmber
-    ? { level: 'amber', reason: `Assigned within ${cooldownDays} days` }
-    : { level: null }
+  if (hasRed) return { level: 'red', reason: 'Assigned within 7 days' }
+  if (hasAmber) return { level: 'amber', reason: `Assigned within ${cooldownDays} days` }
+  return { level: null }
 }
 
 // Get meeting stats per person for rolling 6 months
