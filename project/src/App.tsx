@@ -11,6 +11,7 @@ import { SEED_PEOPLE, SEED_MEETINGS } from './lib/seed'
 import { loadFromCloud, saveToCloud } from './lib/sync'
 import type { ScheduleData } from './lib/sync'
 import { RosterTab } from './components/RosterTab'
+import { PeopleTab } from './components/PeopleTab'
 import { DashboardTab } from './components/DashboardTab'
 import { SettingsModal } from './components/SettingsModal'
 
@@ -174,6 +175,7 @@ export function App() {
           <div className="sticky top-14 z-10 bg-background -mx-4 px-4 border-b border-border flex items-center h-12">
             <TabsList className="h-9">
               <TabsTrigger value="roster" className="text-sm">Roster</TabsTrigger>
+              <TabsTrigger value="people" className="text-sm">People</TabsTrigger>
               <TabsTrigger value="dashboard" className="text-sm">Dashboard</TabsTrigger>
             </TabsList>
           </div>
@@ -187,12 +189,19 @@ export function App() {
             />
           </TabsContent>
 
+          <TabsContent value="people">
+            <PeopleTab
+              people={people}
+              meetings={meetings}
+              onUpdatePeople={handleUpdatePeople}
+              onUpdateMeetings={handleUpdateMeetings}
+            />
+          </TabsContent>
+
           <TabsContent value="dashboard">
             <DashboardTab
               meetings={meetings}
               people={people}
-              onUpdatePeople={handleUpdatePeople}
-              onUpdateMeetings={handleUpdateMeetings}
             />
           </TabsContent>
         </Tabs>

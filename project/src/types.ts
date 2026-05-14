@@ -13,6 +13,7 @@ export interface Person {
   vc: boolean
   // Availability
   availability_status: AvailabilityStatus
+  unavailable_from?: string // ISO date string
   unavailable_until?: string // ISO date string
   unavailable_note?: string
 }

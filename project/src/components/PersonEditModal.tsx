@@ -23,6 +23,7 @@ export function PersonEditModal({ open, person, onSave, onClose }: PersonEditMod
       name: '',
       platform: false, mic1: false, mic2: false, audio: false, video: false, backup: false, vc: false,
       availability_status: 'Available',
+      unavailable_from: '',
       unavailable_until: '',
       unavailable_note: '',
     }
@@ -37,6 +38,7 @@ export function PersonEditModal({ open, person, onSave, onClose }: PersonEditMod
       name: '',
       platform: false, mic1: false, mic2: false, audio: false, video: false, backup: false, vc: false,
       availability_status: 'Available',
+      unavailable_from: '',
       unavailable_until: '',
       unavailable_note: '',
     })
@@ -106,15 +108,27 @@ export function PersonEditModal({ open, person, onSave, onClose }: PersonEditMod
 
           {showUnavailableFields && (
             <>
-              <div>
-                <Label htmlFor="until">Unavailable Until</Label>
-                <Input
-                  id="until"
-                  type="date"
-                  value={form.unavailable_until ?? ''}
-                  onChange={e => setForm(f => ({ ...f, unavailable_until: e.target.value }))}
-                  className="mt-1"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="from">From</Label>
+                  <Input
+                    id="from"
+                    type="date"
+                    value={form.unavailable_from ?? ''}
+                    onChange={e => setForm(f => ({ ...f, unavailable_from: e.target.value }))}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="until">Until</Label>
+                  <Input
+                    id="until"
+                    type="date"
+                    value={form.unavailable_until ?? ''}
+                    onChange={e => setForm(f => ({ ...f, unavailable_until: e.target.value }))}
+                    className="mt-1"
+                  />
+                </div>
               </div>
               <div>
                 <Label htmlFor="note">Note</Label>

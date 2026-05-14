@@ -17,7 +17,8 @@ import { AV_ROLES, NON_AV_ROLES, ROLE_LABELS } from '../types'
 import {
   formatDate, formatDateShort, getPersonName, getPeopleForRole,
   getAllAssignedIds, getPersonRoleInMeeting, checkCooldown,
-  exportCSV, triggerDownload, deriveStatus, countUnfilledRoles
+  exportCSV, triggerDownload, deriveStatus, countUnfilledRoles,
+  isPersonCurrentlyUnavailable,
 } from '../lib/utils-roster'
 import { ConflictModal } from './ConflictModal'
 import { MarkCompleteModal } from './MarkCompleteModal'
@@ -334,32 +335,42 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                       )
                     }
 
+                    const assignedPersonMobile = currentId ? people.find(p => p.id === currentId) : null
+                    const unavailableMobile = assignedPersonMobile && isPersonCurrentlyUnavailable(assignedPersonMobile)
+
                     return (
-                      <div key={role} className={`grid grid-cols-2 gap-2 items-center rounded p-1 ${cellBg}`}>
-                        <span className="text-xs font-medium text-muted-foreground">{ROLE_LABELS[role]}</span>
+                      <div key={role} className={`grid grid-cols-2 gap-2 items-start rounded p-1 ${cellBg}`}>
+                        <span className="text-xs font-medium text-muted-foreground pt-2">{ROLE_LABELS[role]}</span>
                         {meeting.status === 'Completed' ? (
-                          <span className="text-sm">{getPersonName(people, meeting.completions[role]?.actual || meeting.planned[role]) || '—'}</span>
+                          <span className="text-sm pt-1">{getPersonName(people, meeting.completions[role]?.actual || meeting.planned[role]) || '—'}</span>
                         ) : (
-                          <div className={role === 'backup' ? 'flex items-center gap-1' : undefined}>
-                            <Select
-                              value={currentId ?? '__none__'}
-                              onValueChange={v => handleRoleAssign(meeting.id, role, v === '__none__' ? '' : v)}
-                              disabled={meeting.status === 'Cancelled'}
-                            >
-                              <SelectTrigger className={`h-8 text-xs flex-1 ${triggerBg}`}>
-                                <SelectValue placeholder="Assign..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__none__">— Unassigned —</SelectItem>
-                                {eligible.map(p => (
-                                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                          <div className={role === 'backup' ? 'flex items-start gap-1' : undefined}>
+                            <div className="flex-1 min-w-0">
+                              <Select
+                                value={currentId ?? '__none__'}
+                                onValueChange={v => handleRoleAssign(meeting.id, role, v === '__none__' ? '' : v)}
+                                disabled={meeting.status === 'Cancelled'}
+                              >
+                                <SelectTrigger className={`h-8 text-xs w-full ${triggerBg}`}>
+                                  <SelectValue placeholder="Assign..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__none__">— Unassigned —</SelectItem>
+                                  {eligible.map(p => (
+                                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              {unavailableMobile && (
+                                <span className="block text-[10px] text-orange-500 dark:text-orange-400 leading-tight mt-0.5">
+                                  {assignedPersonMobile!.availability_status}
+                                </span>
+                              )}
+                            </div>
                             {role === 'backup' && !currentId && meeting.status === 'Planned' && (
                               <button
                                 onClick={() => handleToggleBackupRequired(meeting.id, false)}
-                                className="shrink-0 p-1 text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
+                                className="shrink-0 p-1 text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors mt-1"
                                 title="Remove backup slot"
                               >
                                 <X className="h-3.5 w-3.5" />
@@ -434,11 +445,11 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
       {/* Desktop table layout */}
       <div className="hidden md:block overflow-x-auto">
         <table className="w-full min-w-[1200px] text-sm border-collapse">
-          <thead className="sticky top-[104px] z-10 bg-muted/40 border-b border-border">
+          <thead className="sticky top-[104px] z-[2] bg-muted/40 border-b border-border">
             <tr>
-              <th className="sticky left-0 z-20 bg-muted/40 text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap w-32">Date</th>
-              <th className="sticky left-32 z-20 bg-muted/40 text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap w-20">Type</th>
-              <th className="sticky left-52 z-20 bg-muted/40 border-r border-border text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide w-24">Status</th>
+              <th className="sticky left-0 z-[3] bg-muted text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap w-32">Date</th>
+              <th className="sticky left-32 z-[3] bg-muted text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap w-20">Type</th>
+              <th className="sticky left-52 z-[3] bg-muted border-r border-border text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide w-24">Status</th>
               {AV_ROLES.map(role => (
                 <th key={role} className="text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap min-w-[120px]">
                   {ROLE_LABELS[role]}
@@ -455,16 +466,16 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
           <tbody>
             {sortedMeetings.map((meeting, idx) => (
               <tr key={meeting.id} className={`group border-b border-border hover:bg-muted/20 transition-colors ${idx % 2 === 0 ? '' : 'bg-muted/5'}`}>
-                <td className="sticky left-0 z-10 bg-background group-hover:bg-muted/20 transition-colors px-2 py-1 whitespace-nowrap">
+                <td className="sticky left-0 z-[1] bg-background group-hover:bg-muted transition-colors px-2 py-1 whitespace-nowrap">
                   <span className="font-medium text-sm">{formatDateShort(meeting.date)}</span>
                   {meeting.status === 'Planned' && countUnfilledRoles(meeting) > 0 && (
                     <span className="ml-1.5 text-[10px] text-muted-foreground/50">{countUnfilledRoles(meeting)} gaps</span>
                   )}
                 </td>
-                <td className="sticky left-32 z-10 bg-background group-hover:bg-muted/20 transition-colors px-2 py-1 whitespace-nowrap">
+                <td className="sticky left-32 z-[1] bg-background group-hover:bg-muted transition-colors px-2 py-1 whitespace-nowrap">
                   <span className="text-xs text-muted-foreground/60">{meeting.type}</span>
                 </td>
-                <td className="sticky left-52 z-10 bg-background group-hover:bg-muted/20 transition-colors border-r border-border px-2 py-1">
+                <td className="sticky left-52 z-[1] bg-background group-hover:bg-muted transition-colors border-r border-border px-2 py-1">
                   {meeting.status === 'Completed' ? (
                     <Badge className="text-xs bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800">Completed</Badge>
                   ) : meeting.status === 'Cancelled' ? (
@@ -493,6 +504,9 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                     )
                   }
 
+                  const assignedPerson = currentId ? people.find(p => p.id === currentId) : null
+                  const unavailable = assignedPerson && isPersonCurrentlyUnavailable(assignedPerson)
+
                   return (
                     <td key={role} className={`p-1 ${cellBg}`}>
                       {meeting.status === 'Completed' ? (
@@ -501,21 +515,28 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                         </span>
                       ) : (
                         <div className={role === 'backup' ? 'flex items-center' : undefined}>
-                          <Select
-                            value={currentId ?? '__none__'}
-                            onValueChange={v => handleRoleAssign(meeting.id, role, v === '__none__' ? '' : v)}
-                            disabled={meeting.status === 'Cancelled'}
-                          >
-                            <SelectTrigger className={`h-7 text-xs border-0 shadow-none focus:ring-0 ${triggerBg} flex-1 min-w-0 ${currentId ? 'font-medium' : 'text-muted-foreground/40'}`}>
-                              <SelectValue placeholder="—" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__none__">— Unassigned —</SelectItem>
-                              {eligible.map(p => (
-                                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <div className="flex-1 min-w-0">
+                            <Select
+                              value={currentId ?? '__none__'}
+                              onValueChange={v => handleRoleAssign(meeting.id, role, v === '__none__' ? '' : v)}
+                              disabled={meeting.status === 'Cancelled'}
+                            >
+                              <SelectTrigger className={`h-7 text-xs border-0 shadow-none focus:ring-0 ${triggerBg} w-full ${currentId ? 'font-medium' : 'text-muted-foreground/40'}`}>
+                                <SelectValue placeholder="—" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none__">— Unassigned —</SelectItem>
+                                {eligible.map(p => (
+                                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {unavailable && (
+                              <span className="block px-1 text-[10px] text-orange-500 dark:text-orange-400 leading-tight">
+                                {assignedPerson!.availability_status}
+                              </span>
+                            )}
+                          </div>
                           {role === 'backup' && !currentId && meeting.status === 'Planned' && (
                             <button
                               onClick={() => handleToggleBackupRequired(meeting.id, false)}
