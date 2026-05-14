@@ -68,21 +68,34 @@ export function App() {
         markInitialized()
         setSyncStatus('synced')
       } else {
+        // Cloud unreachable or empty — load from localStorage (or seed)
+        let localPeople: Person[]
+        let localMeetings: Meeting[]
+        let localSettings: AppSettings
+
         if (!isInitialized()) {
           savePeople(SEED_PEOPLE)
           saveMeetings(SEED_MEETINGS)
           saveSettings(DEFAULT_SETTINGS)
           markInitialized()
-          setPeople(SEED_PEOPLE)
-          setMeetings(SEED_MEETINGS)
-          setSettings(DEFAULT_SETTINGS)
+          localPeople = SEED_PEOPLE
+          localMeetings = SEED_MEETINGS
+          localSettings = DEFAULT_SETTINGS
         } else {
-          setPeople(loadPeople() ?? SEED_PEOPLE)
+          localPeople = loadPeople() ?? SEED_PEOPLE
           const rawMeetings = (loadMeetings() ?? SEED_MEETINGS) as any[]
-          setMeetings(rawMeetings.map(migrateRawMeeting))
-          setSettings(loadSettings() ?? DEFAULT_SETTINGS)
+          localMeetings = rawMeetings.map(migrateRawMeeting)
+          localSettings = loadSettings() ?? DEFAULT_SETTINGS
         }
-        setSyncStatus('error')
+
+        setPeople(localPeople)
+        setMeetings(localMeetings)
+        setSettings(localSettings)
+
+        // Push local data to cloud so other devices can sync
+        setSyncStatus('syncing')
+        const ok = await saveToCloud({ meetings: localMeetings, people: localPeople, settings: localSettings })
+        setSyncStatus(ok ? 'synced' : 'error')
       }
 
       setIsLoadingCloud(false)
