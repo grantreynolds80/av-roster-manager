@@ -432,12 +432,13 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
       </div>
 
       {/* Desktop table layout */}
-      <div className="hidden md:block">
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full min-w-[1200px] text-sm border-collapse">
           <thead className="sticky top-[104px] z-10 bg-muted/40 border-b border-border">
             <tr>
-              <th className="text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap w-40">Date</th>
-              <th className="text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide w-24">Status</th>
+              <th className="sticky left-0 z-20 bg-muted/40 text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap w-32">Date</th>
+              <th className="sticky left-32 z-20 bg-muted/40 text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap w-20">Type</th>
+              <th className="sticky left-52 z-20 bg-muted/40 border-r border-border text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide w-24">Status</th>
               {AV_ROLES.map(role => (
                 <th key={role} className="text-left px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap min-w-[120px]">
                   {ROLE_LABELS[role]}
@@ -453,15 +454,17 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
           </thead>
           <tbody>
             {sortedMeetings.map((meeting, idx) => (
-              <tr key={meeting.id} className={`border-b border-border hover:bg-muted/20 transition-colors ${idx % 2 === 0 ? '' : 'bg-muted/5'}`}>
-                <td className="px-2 py-1 whitespace-nowrap">
+              <tr key={meeting.id} className={`group border-b border-border hover:bg-muted/20 transition-colors ${idx % 2 === 0 ? '' : 'bg-muted/5'}`}>
+                <td className="sticky left-0 z-10 bg-background group-hover:bg-muted/20 transition-colors px-2 py-1 whitespace-nowrap">
                   <span className="font-medium text-sm">{formatDateShort(meeting.date)}</span>
-                  <span className="text-muted-foreground/50 text-xs ml-1.5">· {meeting.type}</span>
                   {meeting.status === 'Planned' && countUnfilledRoles(meeting) > 0 && (
                     <span className="ml-1.5 text-[10px] text-muted-foreground/50">{countUnfilledRoles(meeting)} gaps</span>
                   )}
                 </td>
-                <td className="px-2 py-1">
+                <td className="sticky left-32 z-10 bg-background group-hover:bg-muted/20 transition-colors px-2 py-1 whitespace-nowrap">
+                  <span className="text-xs text-muted-foreground/60">{meeting.type}</span>
+                </td>
+                <td className="sticky left-52 z-10 bg-background group-hover:bg-muted/20 transition-colors border-r border-border px-2 py-1">
                   {meeting.status === 'Completed' ? (
                     <Badge className="text-xs bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800">Completed</Badge>
                   ) : meeting.status === 'Cancelled' ? (
