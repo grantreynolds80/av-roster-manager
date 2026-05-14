@@ -236,14 +236,24 @@ export function getSuggestions(
     const candidates = eligible.map(person => {
       const cooldownLevel = checkCooldown(meetings, targetMeeting, person.id, role, cooldownDays).level
 
-      // daysSinceLast: last completed assignment in this specific role
+      // daysSinceLast: most recent past appearance in this specific role.
+      // Counts planned assignments in non-cancelled past meetings, and completed
+      // actuals where noshow === false (person physically performed the role).
       let daysSinceLast = Infinity
       for (const m of meetings) {
-        if (m.status !== 'Completed') continue
         const mDate = parseISO(m.date)
-        if (mDate >= meetingDate) continue
-        const c = m.completions[role]
-        if (c && c.actual === person.id) {
+        if (mDate >= meetingDate) continue  // future or same-date — skip
+        if (m.status === 'Cancelled') continue
+
+        let appeared = false
+        if (m.status === 'Completed') {
+          const c = m.completions[role]
+          appeared = !!(c && c.actual === person.id && c.noshow === false)
+        } else {
+          appeared = m.planned[role] === person.id
+        }
+
+        if (appeared) {
           const d = differenceInDays(meetingDate, mDate)
           if (d < daysSinceLast) daysSinceLast = d
         }
