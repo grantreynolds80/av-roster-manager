@@ -302,11 +302,11 @@ export function autoFill(
   people: Person[],
   cooldownDays: number
 ): AutoFillResult {
-  const today = new Date().toISOString().split('T')[0]
+  const todayStart = startOfDay(new Date())
   let current = meetings.map(m => ({ ...m, planned: { ...m.planned } }))
   const targets = current
-    .filter(m => m.date >= today && m.status === 'Planned')
-    .sort((a, b) => a.date.localeCompare(b.date))
+    .filter(m => m.status === 'Planned' && !isBefore(startOfDay(parseISO(m.date)), todayStart))
+    .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime())
 
   const changes: AutoFillChange[] = []
   const filledMeetingIds = new Set<string>()
