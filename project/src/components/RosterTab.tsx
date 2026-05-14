@@ -18,7 +18,7 @@ import {
   formatDate, formatDateShort, getPersonName, getPeopleForRole,
   getAllAssignedIds, getPersonRoleInMeeting, checkCooldown,
   exportCSV, triggerDownload, deriveStatus, countUnfilledRoles,
-  isPersonCurrentlyUnavailable, autoFill, generateNextMonthMeetings,
+  isPersonCurrentlyUnavailable, autoFill, generateMeetings,
 } from '../lib/utils-roster'
 import { ConflictModal } from './ConflictModal'
 import { MarkCompleteModal } from './MarkCompleteModal'
@@ -51,6 +51,7 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(null)
   const [cancelConfirm, setCancelConfirm] = useState<string | null>(null)
   const [showCompleted, setShowCompleted] = useState(false)
+  const [generateCount, setGenerateCount] = useState(8)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const sortedMeetings = [...meetings]
@@ -241,23 +242,15 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
   const handleAutoFill = () => {
     const snapshot = meetings
 
-    const { newMeetings, monthLabel } = generateNextMonthMeetings(meetings, new Date())
+    const newMeetings = generateMeetings(meetings, generateCount)
     const combined = [...meetings, ...newMeetings].sort((a, b) =>
       a.date < b.date ? -1 : a.date > b.date ? 1 : 0
     )
 
     const result = autoFill(combined, people, cooldownDays)
-
-    if (newMeetings.length === 0 && result.filledSlots === 0 && result.unfilledSlots === 0) {
-      toast.info('No new meetings to create and no empty slots to fill.')
-      return
-    }
-
     onUpdateMeetings(result.meetings)
 
-    const createdPart = newMeetings.length > 0
-      ? `Created ${newMeetings.length} meeting${newMeetings.length !== 1 ? 's' : ''} for ${monthLabel}.`
-      : ''
+    const createdPart = `Created ${newMeetings.length} meeting${newMeetings.length !== 1 ? 's' : ''}.`
     const filledPart = `Filled ${result.filledSlots} slot${result.filledSlots !== 1 ? 's' : ''}.`
     const unfilledPart = result.unfilledSlots > 0
       ? `${result.unfilledSlots} slot${result.unfilledSlots !== 1 ? 's' : ''} left unfilled.`
@@ -307,10 +300,21 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
             <Upload className="h-4 w-4 mr-1" />
             Import Schedule
           </Button>
-          <Button variant="outline" size="sm" onClick={handleAutoFill}>
-            <Wand2 className="h-4 w-4 mr-1" />
-            Auto-fill
-          </Button>
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              min={1}
+              max={52}
+              value={generateCount}
+              onChange={e => setGenerateCount(Math.max(1, Math.min(52, parseInt(e.target.value) || 8)))}
+              className="w-12 h-8 text-sm text-center border border-input rounded-md bg-background"
+              title="Number of meetings to generate"
+            />
+            <Button variant="outline" size="sm" onClick={handleAutoFill}>
+              <Wand2 className="h-4 w-4 mr-1" />
+              Auto-fill
+            </Button>
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">

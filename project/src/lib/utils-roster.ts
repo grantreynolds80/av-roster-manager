@@ -1,4 +1,4 @@
-import { format, parseISO, differenceInDays, isBefore, isAfter, startOfDay, addMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns'
+import { format, parseISO, differenceInDays, isBefore, isAfter, startOfDay, addDays, getDay } from 'date-fns'
 import type { Meeting, Person, AvRole, AnyRole } from '../types'
 import { AV_ROLES, NON_AV_ROLES } from '../types'
 
@@ -343,59 +343,57 @@ export function autoFill(
   }
 }
 
-export interface GenerateResult {
-  newMeetings: Meeting[]
-  monthLabel: string
+// Advance to the next occurrence of targetDow (0=Sun…6=Sat) strictly after `from`.
+function nextWeekday(from: Date, targetDow: number): Date {
+  const diff = (targetDow - getDay(from) + 7) % 7
+  return addDays(from, diff === 0 ? 7 : diff)
 }
 
-export function generateNextMonthMeetings(existingMeetings: Meeting[], referenceDate: Date): GenerateResult {
-  // Build a set of months (YYYY-MM) that already have at least one meeting
-  const monthsWithMeetings = new Set(existingMeetings.map(m => m.date.slice(0, 7)))
+// Generate `count` meetings continuing the Wed/Sat alternation after the last existing meeting.
+// Skips any date already in the system.
+export function generateMeetings(existingMeetings: Meeting[], count: number): Meeting[] {
+  const existingDates = new Set(existingMeetings.map(m => m.date))
 
-  // Scan forward from next month until we find one with no meetings (max 24 months)
-  let candidate = addMonths(startOfMonth(referenceDate), 1)
-  for (let i = 0; i < 24; i++) {
-    if (!monthsWithMeetings.has(format(candidate, 'yyyy-MM'))) break
-    candidate = addMonths(candidate, 1)
+  const sorted = [...existingMeetings].sort((a, b) => (a.date < b.date ? -1 : 1))
+  const last = sorted[sorted.length - 1]
+
+  let current: Date
+  let nextIsWed: boolean
+
+  if (last) {
+    current = parseISO(last.date)
+    const dow = getDay(current)
+    // Wed → next is Sat; Sat → next is Wed; anything else → default to Wed
+    nextIsWed = dow === 6
+  } else {
+    // No meetings yet — start from tomorrow and pick Wed first
+    current = startOfDay(new Date())
+    nextIsWed = true
   }
 
-  const nextMonthStart = candidate
-  const nextMonthEnd = endOfMonth(nextMonthStart)
-  const monthLabel = format(nextMonthStart, 'MMMM yyyy')
-
-  const existingDates = new Set(existingMeetings.map(m => m.date))
-  const days = eachDayOfInterval({ start: nextMonthStart, end: nextMonthEnd })
   const newMeetings: Meeting[] = []
 
-  for (const day of days) {
-    const dow = getDay(day) // 0=Sun, 3=Wed, 6=Sat
-    const dateStr = format(day, 'yyyy-MM-dd')
-    if (existingDates.has(dateStr)) continue
+  while (newMeetings.length < count) {
+    current = nextWeekday(current, nextIsWed ? 3 : 6)
+    const dateStr = format(current, 'yyyy-MM-dd')
 
-    if (dow === 3) {
+    if (!existingDates.has(dateStr)) {
+      existingDates.add(dateStr)
       newMeetings.push({
         id: crypto.randomUUID(),
         date: dateStr,
-        type: 'Midweek',
+        type: nextIsWed ? 'Midweek' : 'Weekend',
         status: 'Planned',
-        backupRequired: false,
-        planned: {},
-        completions: {},
-      })
-    } else if (dow === 6) {
-      newMeetings.push({
-        id: crypto.randomUUID(),
-        date: dateStr,
-        type: 'Weekend',
-        status: 'Planned',
-        backupRequired: true,
+        backupRequired: !nextIsWed,
         planned: {},
         completions: {},
       })
     }
+
+    nextIsWed = !nextIsWed
   }
 
-  return { newMeetings, monthLabel }
+  return newMeetings
 }
 
 // Export data as CSV
