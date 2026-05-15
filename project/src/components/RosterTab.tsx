@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { CirclePlus as PlusCircle, Upload, CircleCheck as CheckCircle2, Circle as XCircle, Trash2, Lightbulb, ChevronDown, ChevronUp, X, Wand2, Bell } from 'lucide-react'
+import { CircleCheck as CheckCircle2, Circle as XCircle, Trash2, Lightbulb, ChevronDown, ChevronUp, X, Wand2, Bell } from 'lucide-react'
 import type { Meeting, Person, AvRole, NonAvRole, AnyRole, RoleCompletion, PlannedAssignments } from '../types'
 import { AV_ROLES, NON_AV_ROLES, ROLE_LABELS } from '../types'
 import {
@@ -294,12 +294,12 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
   const conflictPerson = conflictPending ? people.find(p => p.id === conflictPending.personId) : null
 
   return (
-    <div className="space-y-4">
-      {/* Actions bar */}
-      <div className="flex flex-wrap gap-2 items-center justify-between">
-        <div className="flex gap-2 flex-wrap">
-          <Button size="sm" onClick={handleAddMeeting}>
-            <PlusCircle className="h-4 w-4 mr-1" />
+    <div className="space-y-2">
+      {/* Actions bar — two rows */}
+      <div className="space-y-1.5">
+        {/* Row 1: action buttons */}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleAddMeeting}>
             Add Meeting
           </Button>
           <input
@@ -314,26 +314,27 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
             }}
           />
           <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-            <Upload className="h-4 w-4 mr-1" />
-            Import Schedule
+            <span className="sm:hidden">Import</span>
+            <span className="hidden sm:inline">Import Schedule</span>
           </Button>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 ml-auto">
             <input
               type="number"
               min={1}
               max={52}
               value={generateCount}
               onChange={e => setGenerateCount(Math.max(1, Math.min(52, parseInt(e.target.value) || 8)))}
-              className="w-12 h-8 text-sm text-center border border-input rounded-md bg-background"
+              className="w-9 h-8 text-sm text-center border border-input rounded-md bg-background"
               title="Number of meetings to generate"
             />
             <Button variant="outline" size="sm" onClick={handleAutoFill}>
-              <Wand2 className="h-4 w-4 mr-1" />
+              <Wand2 className="h-3.5 w-3.5 mr-1" />
               Auto-fill
             </Button>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        {/* Row 2: toggle + export */}
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Switch id="show-completed" checked={showCompleted} onCheckedChange={setShowCompleted} />
             <Label htmlFor="show-completed" className="text-sm text-muted-foreground cursor-pointer">Show completed</Label>
