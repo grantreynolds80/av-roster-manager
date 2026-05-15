@@ -64,7 +64,7 @@ export function App() {
         setMeetings(migratedMeetings)
         setSettings(cloudData.settings ?? DEFAULT_SETTINGS)
         savePeople(cloudData.people)
-        saveMeetings(cloudData.meetings)
+        saveMeetings(migratedMeetings)
         saveSettings(cloudData.settings ?? DEFAULT_SETTINGS)
         markInitialized()
         setSyncStatus('synced')

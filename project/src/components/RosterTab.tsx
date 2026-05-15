@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react'
+import { useState, useRef } from 'react'
 import { toast } from 'sonner'
 import { processXLSXRows, processPDFBuffer, applyImportedMap } from '../lib/import'
 import { Button } from '@/components/ui/button'
@@ -263,17 +263,14 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
     })
   }
 
-  const { weekStart, weekEnd } = useMemo(() => {
-    const today = new Date()
-    const dow = today.getDay()
-    const monday = new Date(today)
-    monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1))
-    monday.setHours(0, 0, 0, 0)
-    const sunday = new Date(monday)
-    sunday.setDate(monday.getDate() + 6)
-    sunday.setHours(23, 59, 59, 999)
-    return { weekStart: monday, weekEnd: sunday }
-  }, [])
+  const today = new Date()
+  const todayDow = today.getDay()
+  const weekStart = new Date(today)
+  weekStart.setDate(today.getDate() - (todayDow === 0 ? 6 : todayDow - 1))
+  weekStart.setHours(0, 0, 0, 0)
+  const weekEnd = new Date(weekStart)
+  weekEnd.setDate(weekStart.getDate() + 6)
+  weekEnd.setHours(23, 59, 59, 999)
 
   const isCurrentWeek = (dateStr: string) => {
     const d = new Date(dateStr + 'T00:00:00')

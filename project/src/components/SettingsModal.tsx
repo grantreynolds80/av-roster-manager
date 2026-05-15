@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -14,6 +14,10 @@ interface SettingsModalProps {
 
 export function SettingsModal({ open, settings, onSave, onClose }: SettingsModalProps) {
   const [cooldown, setCooldown] = useState(settings.cooldownDays)
+
+  useEffect(() => {
+    if (open) setCooldown(settings.cooldownDays)
+  }, [open, settings.cooldownDays])
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
@@ -38,7 +42,7 @@ export function SettingsModal({ open, settings, onSave, onClose }: SettingsModal
             />
             <p className="text-xs text-muted-foreground mt-2">
               Amber highlight when a person is assigned to any AV role within this many days.
-              Red highlight when assigned to the same role within 7 days (fixed).
+              Red highlight when assigned to any AV role within 7 days (fixed).
             </p>
           </div>
         </div>

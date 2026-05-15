@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -38,12 +38,9 @@ function initRows(meeting: Meeting): Record<AvRole, RowState> {
 export function MarkCompleteModal({ open, meeting, people, onSave, onClose }: MarkCompleteModalProps) {
   const [rows, setRows] = useState<Record<AvRole, RowState>>(() => initRows(meeting))
 
-  // Reset state when meeting changes
-  const [lastMeeting, setLastMeeting] = useState(meeting)
-  if (meeting !== lastMeeting) {
-    setLastMeeting(meeting)
+  useEffect(() => {
     setRows(initRows(meeting))
-  }
+  }, [meeting])
 
   const activeRoles = meeting.backupRequired ? AV_ROLES : AV_ROLES.filter(r => r !== 'backup')
 

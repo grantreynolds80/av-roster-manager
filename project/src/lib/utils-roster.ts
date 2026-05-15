@@ -30,6 +30,7 @@ export function isPersonCurrentlyUnavailable(person: Person): boolean {
   const today = startOfDay(new Date())
   const from = person.unavailable_from ? startOfDay(parseISO(person.unavailable_from)) : null
   const until = person.unavailable_until ? startOfDay(parseISO(person.unavailable_until)) : null
+  if (!from && !until) return false
   if (from && isBefore(today, from)) return false
   if (until && isAfter(today, until)) return false
   return true
