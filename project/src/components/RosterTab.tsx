@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { CirclePlus as PlusCircle, Upload, CircleCheck as CheckCircle2, Circle as XCircle, Trash2, Lightbulb, ChevronDown, ChevronUp, X, Wand2 } from 'lucide-react'
+import { CirclePlus as PlusCircle, Upload, CircleCheck as CheckCircle2, Circle as XCircle, Trash2, Lightbulb, ChevronDown, ChevronUp, X, Wand2, Bell } from 'lucide-react'
 import type { Meeting, Person, AvRole, NonAvRole, AnyRole, RoleCompletion, PlannedAssignments } from '../types'
 import { AV_ROLES, NON_AV_ROLES, ROLE_LABELS } from '../types'
 import {
@@ -22,6 +22,7 @@ import {
 } from '../lib/utils-roster'
 import { ConflictModal } from './ConflictModal'
 import { MarkCompleteModal } from './MarkCompleteModal'
+import { RemindersModal } from './RemindersModal'
 import { SuggestionsDrawer } from './SuggestionsDrawer'
 
 interface RosterTabProps {
@@ -47,6 +48,7 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
   const [expandedMobile, setExpandedMobile] = useState<string | null>(null)
   const [conflictPending, setConflictPending] = useState<PendingAssign | null>(null)
   const [markCompleteMeeting, setMarkCompleteMeeting] = useState<Meeting | null>(null)
+  const [remindersMeeting, setRemindersMeeting] = useState<Meeting | null>(null)
   const [suggestionsMeeting, setSuggestionsMeeting] = useState<Meeting | null>(null)
   const [suggestionsHighlightRole, setSuggestionsHighlightRole] = useState<AvRole | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(null)
@@ -479,6 +481,10 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                           <Lightbulb className="h-3 w-3 mr-1" />
                           Suggest
                         </Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setRemindersMeeting(meeting)}>
+                          <Bell className="h-3 w-3 mr-1" />
+                          Remind
+                        </Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs text-muted-foreground" onClick={() => setCancelConfirm(meeting.id)}>
                           <XCircle className="h-3 w-3 mr-1" />
                           Cancel
@@ -654,6 +660,9 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                         <Button size="icon" variant="ghost" className="h-7 w-7" title="Suggestions" onClick={() => { setSuggestionsMeeting(meeting); setSuggestionsHighlightRole(null) }}>
                           <Lightbulb className="h-4 w-4 text-amber-500" />
                         </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" title="Reminders" onClick={() => setRemindersMeeting(meeting)}>
+                          <Bell className="h-4 w-4 text-muted-foreground" />
+                        </Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7" title="Cancel Meeting" onClick={() => setCancelConfirm(meeting.id)}>
                           <XCircle className="h-4 w-4 text-muted-foreground" />
                         </Button>
@@ -693,6 +702,13 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
           onClose={() => setMarkCompleteMeeting(null)}
         />
       )}
+
+      <RemindersModal
+        open={!!remindersMeeting}
+        meeting={remindersMeeting}
+        people={people}
+        onClose={() => setRemindersMeeting(null)}
+      />
 
       <SuggestionsDrawer
         open={!!suggestionsMeeting}
