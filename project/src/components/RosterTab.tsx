@@ -299,25 +299,27 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
       <div className="space-y-1.5">
         {/* Row 1: action buttons */}
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleAddMeeting}>
-            Add Meeting
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.xlsx"
-            className="hidden"
-            onChange={e => {
-              const file = e.target.files?.[0]
-              if (file) importFile(file)
-              e.target.value = ''
-            }}
-          />
-          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-            <span className="sm:hidden">Import</span>
-            <span className="hidden sm:inline">Import Schedule</span>
-          </Button>
-          <div className="flex items-center gap-1 ml-auto">
+          <div className="grid grid-cols-2 gap-2 flex-1">
+            <Button variant="outline" size="sm" onClick={handleAddMeeting}>
+              Add Meeting
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.xlsx"
+              className="hidden"
+              onChange={e => {
+                const file = e.target.files?.[0]
+                if (file) importFile(file)
+                e.target.value = ''
+              }}
+            />
+            <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+              <span className="sm:hidden">Import</span>
+              <span className="hidden sm:inline">Import Schedule</span>
+            </Button>
+          </div>
+          <div className="flex items-center gap-1">
             <input
               type="number"
               min={1}
