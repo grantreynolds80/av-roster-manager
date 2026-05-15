@@ -61,8 +61,8 @@ export function RemindersModal({ open, meeting, people, onClose }: RemindersModa
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
-      <DialogContent className="max-w-sm sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="max-w-sm sm:max-w-md flex flex-col max-h-[85vh]">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Reminders</DialogTitle>
           <p className="text-sm text-muted-foreground">{formatDate(meeting.date)} · {meeting.type}</p>
         </DialogHeader>
@@ -70,8 +70,8 @@ export function RemindersModal({ open, meeting, people, onClose }: RemindersModa
         {messages.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4 text-center">No people assigned yet.</p>
         ) : (
-          <div className="space-y-3 mt-1">
-            <div className="flex justify-end">
+          <div className="flex-1 overflow-y-auto min-h-0 -mx-6 px-6">
+            <div className="sticky top-0 bg-background flex justify-end pb-2 pt-1 z-10">
               <Button
                 size="sm"
                 variant="outline"
@@ -85,22 +85,24 @@ export function RemindersModal({ open, meeting, people, onClose }: RemindersModa
               </Button>
             </div>
 
-            {messages.map(({ role, personName, text }) => (
-              <div key={role} className="rounded-md border border-border bg-muted/30 p-3 flex gap-3 items-start">
-                <pre className="flex-1 text-sm whitespace-pre-wrap font-sans leading-relaxed">{text}</pre>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7 shrink-0 mt-0.5"
-                  title={`Copy message for ${personName}`}
-                  onClick={() => copy(text, role)}
-                >
-                  {copied === role
-                    ? <Check className="h-3.5 w-3.5 text-green-600" />
-                    : <Copy className="h-3.5 w-3.5" />}
-                </Button>
-              </div>
-            ))}
+            <div className="space-y-3 pb-2">
+              {messages.map(({ role, personName, text }) => (
+                <div key={role} className="rounded-md border border-border bg-muted/30 p-3 flex gap-3 items-start">
+                  <pre className="flex-1 text-sm whitespace-pre-wrap font-sans leading-relaxed">{text}</pre>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 shrink-0 mt-0.5"
+                    title={`Copy message for ${personName}`}
+                    onClick={() => copy(text, role)}
+                  >
+                    {copied === role
+                      ? <Check className="h-3.5 w-3.5 text-green-600" />
+                      : <Copy className="h-3.5 w-3.5" />}
+                  </Button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </DialogContent>
