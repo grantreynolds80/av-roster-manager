@@ -143,6 +143,7 @@ export function checkCooldown(
 // Get meeting stats per person for rolling 6 months
 export interface PersonStats {
   personId: string
+  // Assigned counts: times planned in each role across all non-cancelled meetings
   platform: number
   mic1: number
   mic2: number
@@ -153,7 +154,8 @@ export interface PersonStats {
   reader: number
   entranceAttendant: number
   auditoriumAttendant: number
-  total: number
+  total: number        // total assigned (all roles, all non-cancelled meetings)
+  fulfilledTotal: number  // times person actually appeared in a completed meeting's actuals
   [key: string]: number | string
 }
 
@@ -167,42 +169,42 @@ export function computeStats(meetings: Meeting[], people: Person[]): PersonStats
     statsMap.set(person.id, {
       personId: person.id,
       platform: 0, mic1: 0, mic2: 0, audio: 0, video: 0, backup: 0, vc: 0,
-      reader: 0, entranceAttendant: 0, auditoriumAttendant: 0, total: 0,
+      reader: 0, entranceAttendant: 0, auditoriumAttendant: 0, total: 0, fulfilledTotal: 0,
     })
   }
 
   for (const meeting of meetings) {
     const mDate = parseISO(meeting.date)
     if (mDate < cutoff) continue
+    if (meeting.status === 'Cancelled') continue
 
-    if (meeting.status === 'Completed') {
-      // AV roles: count the actual person (fill-ins count, no-shows don't)
-      for (const role of AV_ROLES) {
-        const c = meeting.completions[role]
-        if (c && c.actual) {
-          const s = statsMap.get(c.actual)
-          if (s) { s[role] = (s[role] as number) + 1; s.total = (s.total as number) + 1 }
-        }
-      }
-    } else {
-      // Planned meetings: count planned assignments
-      for (const role of AV_ROLES) {
-        const id = meeting.planned[role]
-        if (id && statsMap.has(id)) {
-          const s = statsMap.get(id)!
-          s[role] = (s[role] as number) + 1
-          s.total = (s.total as number) + 1
-        }
+    // Assigned: always from planned (both Planned-status and Completed meetings)
+    for (const role of AV_ROLES) {
+      const id = meeting.planned[role]
+      if (id && statsMap.has(id)) {
+        const s = statsMap.get(id)!
+        s[role] = (s[role] as number) + 1
+        s.total = (s.total as number) + 1
       }
     }
-
-    // Non-AV roles always from planned
     for (const role of NON_AV_ROLES) {
       const id = (meeting.planned as Record<string, string | undefined>)[role]
       if (id && statsMap.has(id)) {
         const s = statsMap.get(id)!
         s[role] = (s[role] as number) + 1
         s.total = (s.total as number) + 1
+      }
+    }
+
+    // Fulfilled: only from completions of completed meetings
+    if (meeting.status === 'Completed') {
+      for (const role of AV_ROLES) {
+        if (role === 'backup' && !meeting.backupRequired) continue
+        const c = meeting.completions[role]
+        if (c && c.actual && c.actual !== '') {
+          const s = statsMap.get(c.actual)
+          if (s) s.fulfilledTotal = (s.fulfilledTotal as number) + 1
+        }
       }
     }
   }

@@ -4,7 +4,7 @@ import type { Meeting, Person } from '../types'
 import { computeStats } from '../lib/utils-roster'
 import { AssignmentHistoryModal } from './AssignmentHistoryModal'
 
-type SortKey = 'name' | 'platform' | 'mic1' | 'mic2' | 'audio' | 'video' | 'backup' | 'vc' | 'reader' | 'entranceAttendant' | 'auditoriumAttendant' | 'total'
+type SortKey = 'name' | 'platform' | 'mic' | 'audio' | 'video' | 'backup' | 'vc' | 'reader' | 'entranceAttendant' | 'auditoriumAttendant' | 'total'
 
 interface DashboardTabProps {
   meetings: Meeting[]
@@ -24,8 +24,8 @@ export function DashboardTab({ meetings, people }: DashboardTabProps) {
       const nameB = people.find(p => p.id === b.personId)?.name ?? ''
       return sortAsc ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA)
     }
-    const va = (a[sortKey] as number) ?? 0
-    const vb = (b[sortKey] as number) ?? 0
+    const va = sortKey === 'mic' ? a.mic1 + a.mic2 : (a[sortKey] as number) ?? 0
+    const vb = sortKey === 'mic' ? b.mic1 + b.mic2 : (b[sortKey] as number) ?? 0
     return sortAsc ? va - vb : vb - va
   })
 
@@ -41,8 +41,7 @@ export function DashboardTab({ meetings, people }: DashboardTabProps) {
 
   const STAT_COLS: Array<{ key: SortKey; label: string }> = [
     { key: 'platform', label: 'Plat' },
-    { key: 'mic1', label: 'Mic 1' },
-    { key: 'mic2', label: 'Mic 2' },
+    { key: 'mic', label: 'Mic' },
     { key: 'audio', label: 'Audio' },
     { key: 'video', label: 'Video' },
     { key: 'backup', label: 'Bkup' },
@@ -73,6 +72,7 @@ export function DashboardTab({ meetings, people }: DashboardTabProps) {
                     </button>
                   </th>
                 ))}
+                <th className="text-center p-2 text-muted-foreground font-medium">Rate</th>
               </tr>
             </thead>
             <tbody>
@@ -86,11 +86,17 @@ export function DashboardTab({ meetings, people }: DashboardTabProps) {
                     onClick={() => setHistoryPerson(person)}
                   >
                     <td className="p-2 font-medium">{person.name}</td>
-                    {STAT_COLS.map(col => (
-                      <td key={col.key} className="p-2 text-center text-muted-foreground">
-                        {(stat[col.key] as number) || '—'}
-                      </td>
-                    ))}
+                    {STAT_COLS.map(col => {
+                      const val = col.key === 'mic' ? stat.mic1 + stat.mic2 : (stat[col.key] as number)
+                      return (
+                        <td key={col.key} className="p-2 text-center text-muted-foreground">
+                          {val || '—'}
+                        </td>
+                      )
+                    })}
+                    <td className="p-2 text-center text-muted-foreground">
+                      {stat.total === 0 ? '—' : `${Math.round((stat.fulfilledTotal / stat.total) * 100)}%`}
+                    </td>
                   </tr>
                 )
               })}
