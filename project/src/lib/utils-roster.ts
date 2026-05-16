@@ -154,8 +154,9 @@ export interface PersonStats {
   reader: number
   entranceAttendant: number
   auditoriumAttendant: number
-  total: number        // total assigned (all roles, all non-cancelled meetings)
-  fulfilledTotal: number  // times person actually appeared in a completed meeting's actuals
+  total: number               // total assigned (all roles, all non-cancelled meetings)
+  assignedCompletedTotal: number  // assigned in completed meetings only (rate denominator)
+  fulfilledTotal: number      // times person actually appeared in a completed meeting's actuals
   [key: string]: number | string
 }
 
@@ -169,7 +170,7 @@ export function computeStats(meetings: Meeting[], people: Person[]): PersonStats
     statsMap.set(person.id, {
       personId: person.id,
       platform: 0, mic1: 0, mic2: 0, audio: 0, video: 0, backup: 0, vc: 0,
-      reader: 0, entranceAttendant: 0, auditoriumAttendant: 0, total: 0, fulfilledTotal: 0,
+      reader: 0, entranceAttendant: 0, auditoriumAttendant: 0, total: 0, assignedCompletedTotal: 0, fulfilledTotal: 0,
     })
   }
 
@@ -196,10 +197,14 @@ export function computeStats(meetings: Meeting[], people: Person[]): PersonStats
       }
     }
 
-    // Fulfilled: only from completions of completed meetings
+    // Assigned in completed meetings + fulfilled: both only for completed meetings
     if (meeting.status === 'Completed') {
       for (const role of AV_ROLES) {
         if (role === 'backup' && !meeting.backupRequired) continue
+        const plannedId = meeting.planned[role]
+        if (plannedId && statsMap.has(plannedId)) {
+          statsMap.get(plannedId)!.assignedCompletedTotal = (statsMap.get(plannedId)!.assignedCompletedTotal as number) + 1
+        }
         const c = meeting.completions[role]
         if (c && c.actual && c.actual !== '') {
           const s = statsMap.get(c.actual)

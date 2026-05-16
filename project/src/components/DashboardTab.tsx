@@ -95,7 +95,7 @@ export function DashboardTab({ meetings, people }: DashboardTabProps) {
                       )
                     })}
                     <td className="p-2 text-center text-muted-foreground">
-                      {stat.total === 0 ? '—' : `${Math.round((stat.fulfilledTotal / stat.total) * 100)}%`}
+                      {stat.assignedCompletedTotal === 0 ? '—' : `${Math.round((stat.fulfilledTotal / stat.assignedCompletedTotal) * 100)}%`}
                     </td>
                   </tr>
                 )
