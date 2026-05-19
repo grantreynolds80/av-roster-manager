@@ -25,19 +25,19 @@ export function getPersonName(people: Person[], id?: string): string {
   return person.name
 }
 
-export function isPersonCurrentlyUnavailable(person: Person): boolean {
+export function isPersonCurrentlyUnavailable(person: Person, onDate?: string): boolean {
   if (person.availability_status === 'Available') return false
-  const today = startOfDay(new Date())
   const from = person.unavailable_from ? startOfDay(parseISO(person.unavailable_from)) : null
   const until = person.unavailable_until ? startOfDay(parseISO(person.unavailable_until)) : null
   if (!from && !until) return false
-  if (from && isBefore(today, from)) return false
-  if (until && isAfter(today, until)) return false
+  const checkDate = onDate ? startOfDay(parseISO(onDate)) : startOfDay(new Date())
+  if (from && isBefore(checkDate, from)) return false
+  if (until && isAfter(checkDate, until)) return false
   return true
 }
 
-export function getPeopleForRole(people: Person[], role: AvRole): Person[] {
-  return people.filter(p => p[role] && !isPersonCurrentlyUnavailable(p))
+export function getPeopleForRole(people: Person[], role: AvRole, onDate?: string): Person[] {
+  return people.filter(p => p[role] && !isPersonCurrentlyUnavailable(p, onDate))
 }
 
 // Returns all role assignments (AV + non-AV) for a meeting as flat id set
@@ -239,7 +239,7 @@ export function getSuggestions(
   return roles.map(role => {
     const eligible = people.filter(p =>
       p[role] &&
-      !isPersonCurrentlyUnavailable(p) &&
+      !isPersonCurrentlyUnavailable(p, targetMeeting.date) &&
       !assignedInMeeting.has(p.id)
     )
 

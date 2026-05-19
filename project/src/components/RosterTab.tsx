@@ -383,7 +383,7 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                     const cdLevel = getCooldownLevel(meeting, role, currentId)
                     const cellBg = cdLevel === 'red' ? 'bg-red-50 dark:bg-red-500/10 dark:border-l-2 dark:border-red-500' : cdLevel === 'amber' ? 'bg-amber-50 dark:bg-amber-500/10 dark:border-l-2 dark:border-amber-500' : ''
                     const triggerBg = cdLevel === 'red' ? 'bg-red-100/60 dark:bg-transparent' : cdLevel === 'amber' ? 'bg-amber-100/60 dark:bg-transparent' : ''
-                    const eligible = getPeopleForRole(people, role)
+                    const eligible = getPeopleForRole(people, role, meeting.date)
 
                     if (role === 'backup' && !meeting.backupRequired && meeting.status !== 'Completed') {
                       return (
@@ -401,7 +401,7 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                     }
 
                     const assignedPersonMobile = currentId ? people.find(p => p.id === currentId) : null
-                    const unavailableMobile = assignedPersonMobile && isPersonCurrentlyUnavailable(assignedPersonMobile)
+                    const unavailableMobile = assignedPersonMobile && isPersonCurrentlyUnavailable(assignedPersonMobile, meeting.date)
 
                     return (
                       <div key={role} className={`grid grid-cols-2 gap-2 items-start rounded p-1 ${cellBg}`}>
@@ -560,7 +560,7 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                   const cdLevel = getCooldownLevel(meeting, role, currentId)
                   const cellBg = cdLevel === 'red' ? 'bg-red-50 dark:bg-red-500/10 dark:border-l-2 dark:border-red-500' : cdLevel === 'amber' ? 'bg-amber-50 dark:bg-amber-500/10 dark:border-l-2 dark:border-amber-500' : ''
                   const triggerBg = cdLevel === 'red' ? 'bg-red-100/60 dark:bg-transparent' : cdLevel === 'amber' ? 'bg-amber-100/60 dark:bg-transparent' : 'bg-transparent'
-                  const eligible = getPeopleForRole(people, role)
+                  const eligible = getPeopleForRole(people, role, meeting.date)
 
                   if (role === 'backup' && !meeting.backupRequired && meeting.status !== 'Completed') {
                     return (
@@ -576,7 +576,7 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                   }
 
                   const assignedPerson = currentId ? people.find(p => p.id === currentId) : null
-                  const unavailable = assignedPerson && isPersonCurrentlyUnavailable(assignedPerson)
+                  const unavailable = assignedPerson && isPersonCurrentlyUnavailable(assignedPerson, meeting.date)
 
                   // Empty Planned cell: click to open suggestions for this role
                   if (!currentId && meeting.status === 'Planned') {
