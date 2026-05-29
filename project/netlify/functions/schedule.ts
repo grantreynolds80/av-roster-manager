@@ -1,17 +1,33 @@
-import { getStore } from '@netlify/blobs'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+const TABLE = 'schedule'
+const ROW_ID = 'v1'
 
 export default async (req: Request): Promise<Response> => {
   try {
-    const store = getStore('schedule')
-
     if (req.method === 'GET') {
-      const data = await store.get('v1', { type: 'json' })
-      return Response.json(data ?? null)
+      const { data, error } = await supabase
+        .from(TABLE)
+        .select('data')
+        .eq('id', ROW_ID)
+        .maybeSingle()
+
+      if (error) throw error
+      return Response.json(data?.data ?? null)
     }
 
     if (req.method === 'POST') {
       const body = await req.json()
-      await store.setJSON('v1', body)
+      const { error } = await supabase
+        .from(TABLE)
+        .upsert({ id: ROW_ID, data: body, updated_at: new Date().toISOString() })
+
+      if (error) throw error
       return Response.json({ ok: true })
     }
 

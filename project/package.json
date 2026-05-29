@@ -13,6 +13,7 @@
     "@hookform/resolvers": "^5.2.2",
     "@netlify/blobs": "^10.7.6",
     "@netlify/neon": "^0.1.2",
+    "@supabase/supabase-js": "^2.106.2",
     "@tailwindcss/vite": "^4.2.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
