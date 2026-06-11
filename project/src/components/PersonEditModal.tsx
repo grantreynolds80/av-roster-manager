@@ -51,7 +51,7 @@ export function PersonEditModal({ open, person, onSave, onClose }: PersonEditMod
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md" onOpenAutoFocus={e => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>{person ? 'Edit Person' : 'Add Person'}</DialogTitle>
         </DialogHeader>
