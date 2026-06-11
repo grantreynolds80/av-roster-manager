@@ -283,21 +283,18 @@ export function getSuggestions(
       return { person, daysSinceLast, cooldown: cooldownLevel }
     })
 
-    // Exclude anyone with a red cooldown (assigned to any role within 7 days)
-    const nonRed = candidates.filter(c => c.cooldown !== 'red')
-
-    // Sort: no-cooldown first, then amber — within each tier by most overdue (Infinity = never, goes first)
-    nonRed.sort((a, b) => {
-      if (a.cooldown !== b.cooldown) {
-        return a.cooldown === null ? -1 : 1
-      }
+    // Sort: no-cooldown first, then amber, then red — within each tier by most overdue (Infinity = never, goes first)
+    const cooldownRank = (c: AvailabilityBadge) => c === null ? 0 : c === 'amber' ? 1 : 2
+    candidates.sort((a, b) => {
+      const rankDiff = cooldownRank(a.cooldown) - cooldownRank(b.cooldown)
+      if (rankDiff !== 0) return rankDiff
       if (a.daysSinceLast === Infinity && b.daysSinceLast === Infinity) return 0
       if (a.daysSinceLast === Infinity) return -1
       if (b.daysSinceLast === Infinity) return 1
       return b.daysSinceLast - a.daysSinceLast
     })
 
-    return { role, suggestions: nonRed.slice(0, 3) }
+    return { role, suggestions: candidates.slice(0, 3) }
   })
 }
 

@@ -85,6 +85,9 @@ export function SuggestionsDrawer({ open, meeting, meetings, people, cooldownDay
                           {cooldown === 'amber' && (
                             <span className="text-[10px] text-amber-600 dark:text-amber-400 border border-amber-300 dark:border-amber-700 rounded px-1 leading-4 shrink-0">cooldown</span>
                           )}
+                          {cooldown === 'red' && (
+                            <span className="text-[10px] text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded px-1 leading-4 shrink-0">too soon</span>
+                          )}
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                           <span className="text-xs text-muted-foreground">
