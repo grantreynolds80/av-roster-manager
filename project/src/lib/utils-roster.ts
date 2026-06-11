@@ -25,6 +25,17 @@ export function getPersonName(people: Person[], id?: string): string {
   return person.name
 }
 
+export function getUnavailabilityState(person: Person): 'active' | 'upcoming' | 'past' | null {
+  if (person.availability_status === 'Available') return null
+  const from = person.unavailable_from ? startOfDay(parseISO(person.unavailable_from)) : null
+  const until = person.unavailable_until ? startOfDay(parseISO(person.unavailable_until)) : null
+  if (!from && !until) return null
+  const today = startOfDay(new Date())
+  if (until && isBefore(until, today)) return 'past'
+  if (from && isAfter(from, today)) return 'upcoming'
+  return 'active'
+}
+
 export function isPersonCurrentlyUnavailable(person: Person, onDate?: string): boolean {
   if (person.availability_status === 'Available') return false
   const from = person.unavailable_from ? startOfDay(parseISO(person.unavailable_from)) : null

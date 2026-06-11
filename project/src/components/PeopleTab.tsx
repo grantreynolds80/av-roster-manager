@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import type { Meeting, Person } from '../types'
 import { AV_ROLES, ROLE_LABELS } from '../types'
-import { formatDateShort, isPersonCurrentlyUnavailable } from '../lib/utils-roster'
+import { formatDateShort, getUnavailabilityState } from '../lib/utils-roster'
 import { PersonEditModal } from './PersonEditModal'
 import { AssignmentHistoryModal } from './AssignmentHistoryModal'
 
@@ -89,7 +89,7 @@ export function PeopleTab({ people, meetings, onUpdatePeople, onUpdateMeetings }
           </p>
         )}
         {filtered.map(person => {
-          const currentlyUnavailable = isPersonCurrentlyUnavailable(person)
+          const unavailState = getUnavailabilityState(person)
           const roleLabels = AV_ROLES.filter(r => person[r]).map(r => ROLE_LABELS[r])
 
           return (
@@ -103,13 +103,13 @@ export function PeopleTab({ people, meetings, onUpdatePeople, onUpdateMeetings }
               >
                 <span className="font-medium text-sm">{person.name}</span>
 
-                {person.availability_status !== 'Available' && (
+                {(unavailState === 'active' || unavailState === 'upcoming') && (
                   <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded font-medium ${AVAILABILITY_COLORS[person.availability_status]}`}>
-                    {currentlyUnavailable ? person.availability_status : `${person.availability_status} (upcoming)`}
+                    {unavailState === 'active' ? person.availability_status : `${person.availability_status} (upcoming)`}
                   </span>
                 )}
 
-                {person.unavailable_until && currentlyUnavailable && (
+                {person.unavailable_until && unavailState === 'active' && (
                   <span className="text-xs text-muted-foreground shrink-0">
                     until {formatDateShort(person.unavailable_until)}
                   </span>
