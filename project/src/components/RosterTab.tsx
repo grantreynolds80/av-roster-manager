@@ -578,30 +578,6 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                   const assignedPerson = currentId ? people.find(p => p.id === currentId) : null
                   const unavailable = assignedPerson && isPersonCurrentlyUnavailable(assignedPerson, meeting.date)
 
-                  // Empty Planned cell: click to open suggestions for this role
-                  if (!currentId && meeting.status === 'Planned') {
-                    return (
-                      <td key={role} className={`p-1 border-b border-border ${cellBg}`}>
-                        <div className="flex items-center">
-                          <div
-                            className="flex-1 h-7 flex items-center px-2 text-xs text-muted-foreground/30 hover:text-primary/50 transition-colors cursor-pointer"
-                            onClick={() => { setSuggestionsMeeting(meeting); setSuggestionsHighlightRole(role) }}
-                            title={`Suggest people for ${ROLE_LABELS[role]}`}
-                          >—</div>
-                          {role === 'backup' && (
-                            <button
-                              onClick={() => handleToggleBackupRequired(meeting.id, false)}
-                              className="shrink-0 p-0.5 text-muted-foreground/20 hover:text-muted-foreground/60 transition-colors"
-                              title="Remove backup slot"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    )
-                  }
-
                   return (
                     <td key={role} className={`p-1 border-b border-border ${cellBg}`}>
                       {meeting.status === 'Completed' ? (
@@ -609,26 +585,37 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
                           {getPersonName(people, meeting.completions[role]?.actual || meeting.planned[role]) || '—'}
                         </span>
                       ) : (
-                        <div className="flex-1 min-w-0">
-                          <Select
-                            value={currentId ?? '__none__'}
-                            onValueChange={v => handleRoleAssign(meeting.id, role, v === '__none__' ? '' : v)}
-                            disabled={meeting.status === 'Cancelled'}
-                          >
-                            <SelectTrigger className={`h-7 text-xs border-0 shadow-none focus:ring-0 ${triggerBg} w-full ${currentId ? 'font-medium' : 'text-muted-foreground/40'}`}>
-                              <SelectValue placeholder="—" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__none__">— Unassigned —</SelectItem>
-                              {eligible.map(p => (
-                                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {unavailable && (
-                            <span className="block px-1 text-[10px] text-orange-500 dark:text-orange-400 leading-tight">
-                              {assignedPerson!.availability_status}
-                            </span>
+                        <div className="flex items-center gap-0.5">
+                          <div className="flex-1 min-w-0">
+                            <Select
+                              value={currentId ?? '__none__'}
+                              onValueChange={v => handleRoleAssign(meeting.id, role, v === '__none__' ? '' : v)}
+                              disabled={meeting.status === 'Cancelled'}
+                            >
+                              <SelectTrigger className={`h-7 text-xs border-0 shadow-none focus:ring-0 ${triggerBg} w-full ${currentId ? 'font-medium' : 'text-muted-foreground/40'}`}>
+                                <SelectValue placeholder="—" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none__">— Unassigned —</SelectItem>
+                                {eligible.map(p => (
+                                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {unavailable && (
+                              <span className="block px-1 text-[10px] text-orange-500 dark:text-orange-400 leading-tight">
+                                {assignedPerson!.availability_status}
+                              </span>
+                            )}
+                          </div>
+                          {role === 'backup' && !currentId && meeting.status === 'Planned' && (
+                            <button
+                              onClick={() => handleToggleBackupRequired(meeting.id, false)}
+                              className="shrink-0 p-0.5 text-muted-foreground/20 hover:text-muted-foreground/60 transition-colors"
+                              title="Remove backup slot"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
                           )}
                         </div>
                       )}
