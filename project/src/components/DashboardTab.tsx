@@ -4,7 +4,7 @@ import type { Meeting, Person } from '../types'
 import { computeStats } from '../lib/utils-roster'
 import { AssignmentHistoryModal } from './AssignmentHistoryModal'
 
-type SortKey = 'name' | 'platform' | 'mic' | 'audio' | 'video' | 'backup' | 'vc' | 'reader' | 'entranceAttendant' | 'auditoriumAttendant' | 'total'
+type SortKey = 'name' | 'platform' | 'mic' | 'audio' | 'video' | 'backup' | 'vc' | 'total'
 
 interface DashboardTabProps {
   meetings: Meeting[]
@@ -46,9 +46,6 @@ export function DashboardTab({ meetings, people }: DashboardTabProps) {
     { key: 'video', label: 'Video' },
     { key: 'backup', label: 'Bkup' },
     { key: 'vc', label: 'VC' },
-    { key: 'reader', label: 'Read' },
-    { key: 'entranceAttendant', label: 'Entr' },
-    { key: 'auditoriumAttendant', label: 'Aud' },
     { key: 'total', label: 'Total' },
   ]
 
