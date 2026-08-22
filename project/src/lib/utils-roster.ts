@@ -168,12 +168,16 @@ export interface PersonStats {
   total: number               // total assigned (all roles, all non-cancelled meetings)
   assignedCompletedTotal: number  // assigned in completed meetings only (rate denominator)
   fulfilledTotal: number      // times person actually appeared in a completed meeting's actuals
+  noShows: number             // assignedCompletedTotal - fulfilledTotal
+  recentAssignedCompleted: number  // assignedCompletedTotal for last 8 weeks
+  recentFulfilled: number          // fulfilledTotal for last 8 weeks
   [key: string]: number | string
 }
 
 export function computeStats(meetings: Meeting[], people: Person[]): PersonStats[] {
   const cutoff = new Date()
   cutoff.setMonth(cutoff.getMonth() - 6)
+  const recentCutoff = addDays(startOfDay(new Date()), -56)
 
   const statsMap = new Map<string, PersonStats>()
 
@@ -181,7 +185,9 @@ export function computeStats(meetings: Meeting[], people: Person[]): PersonStats
     statsMap.set(person.id, {
       personId: person.id,
       platform: 0, mic1: 0, mic2: 0, audio: 0, video: 0, backup: 0, vc: 0,
-      reader: 0, entranceAttendant: 0, auditoriumAttendant: 0, total: 0, assignedCompletedTotal: 0, fulfilledTotal: 0,
+      reader: 0, entranceAttendant: 0, auditoriumAttendant: 0, total: 0,
+      assignedCompletedTotal: 0, fulfilledTotal: 0,
+      noShows: 0, recentAssignedCompleted: 0, recentFulfilled: 0,
     })
   }
 
@@ -210,19 +216,29 @@ export function computeStats(meetings: Meeting[], people: Person[]): PersonStats
 
     // Assigned in completed meetings + fulfilled: both only for completed meetings
     if (meeting.status === 'Completed') {
+      const isRecent = !isBefore(mDate, recentCutoff)
       for (const role of AV_ROLES) {
         if (role === 'backup' && !meeting.backupRequired) continue
         const plannedId = meeting.planned[role]
         if (plannedId && statsMap.has(plannedId)) {
-          statsMap.get(plannedId)!.assignedCompletedTotal = (statsMap.get(plannedId)!.assignedCompletedTotal as number) + 1
+          const s = statsMap.get(plannedId)!
+          s.assignedCompletedTotal = (s.assignedCompletedTotal as number) + 1
+          if (isRecent) s.recentAssignedCompleted = (s.recentAssignedCompleted as number) + 1
         }
         const c = meeting.completions[role]
         if (c && c.actual && c.actual !== '') {
           const s = statsMap.get(c.actual)
-          if (s) s.fulfilledTotal = (s.fulfilledTotal as number) + 1
+          if (s) {
+            s.fulfilledTotal = (s.fulfilledTotal as number) + 1
+            if (isRecent) s.recentFulfilled = (s.recentFulfilled as number) + 1
+          }
         }
       }
     }
+  }
+
+  for (const s of statsMap.values()) {
+    s.noShows = (s.assignedCompletedTotal as number) - (s.fulfilledTotal as number)
   }
 
   return Array.from(statsMap.values())

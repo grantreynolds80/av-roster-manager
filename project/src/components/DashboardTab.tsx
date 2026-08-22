@@ -4,7 +4,7 @@ import type { Meeting, Person } from '../types'
 import { computeStats } from '../lib/utils-roster'
 import { AssignmentHistoryModal } from './AssignmentHistoryModal'
 
-type SortKey = 'name' | 'platform' | 'mic' | 'audio' | 'video' | 'backup' | 'vc' | 'total' | 'rate'
+type SortKey = 'name' | 'platform' | 'mic' | 'audio' | 'video' | 'backup' | 'vc' | 'total' | 'noShows' | 'rate' | 'recentRate'
 
 interface DashboardTabProps {
   meetings: Meeting[]
@@ -26,6 +26,8 @@ export function DashboardTab({ meetings, people }: DashboardTabProps) {
     }
     const rate = (s: typeof a) => s.assignedCompletedTotal === 0 ? -1 : s.fulfilledTotal / s.assignedCompletedTotal
     if (sortKey === 'rate') return sortAsc ? rate(a) - rate(b) : rate(b) - rate(a)
+    const recentRate = (s: typeof a) => s.recentAssignedCompleted === 0 ? -1 : s.recentFulfilled / s.recentAssignedCompleted
+    if (sortKey === 'recentRate') return sortAsc ? recentRate(a) - recentRate(b) : recentRate(b) - recentRate(a)
     const va = sortKey === 'mic' ? a.mic1 + a.mic2 : (a[sortKey] as number) ?? 0
     const vb = sortKey === 'mic' ? b.mic1 + b.mic2 : (b[sortKey] as number) ?? 0
     return sortAsc ? va - vb : vb - va
@@ -49,6 +51,7 @@ export function DashboardTab({ meetings, people }: DashboardTabProps) {
     { key: 'backup', label: 'Bkup' },
     { key: 'vc', label: 'VC' },
     { key: 'total', label: 'Total' },
+    { key: 'noShows', label: 'No-shows' },
   ]
 
   return (
@@ -76,6 +79,11 @@ export function DashboardTab({ meetings, people }: DashboardTabProps) {
                     Rate <SortIcon k="rate" />
                   </button>
                 </th>
+                <th className="text-center p-2">
+                  <button className="group flex items-center justify-center gap-1 font-medium hover:text-foreground w-full" onClick={() => handleSort('recentRate')}>
+                    8wk <SortIcon k="recentRate" />
+                  </button>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -99,6 +107,9 @@ export function DashboardTab({ meetings, people }: DashboardTabProps) {
                     })}
                     <td className="p-2 text-center text-muted-foreground">
                       {stat.assignedCompletedTotal === 0 ? '—' : `${Math.round((stat.fulfilledTotal / stat.assignedCompletedTotal) * 100)}%`}
+                    </td>
+                    <td className="p-2 text-center text-muted-foreground">
+                      {stat.recentAssignedCompleted === 0 ? '—' : `${Math.round((stat.recentFulfilled / stat.recentAssignedCompleted) * 100)}%`}
                     </td>
                   </tr>
                 )
