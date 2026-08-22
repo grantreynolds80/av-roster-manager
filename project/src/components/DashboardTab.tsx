@@ -60,7 +60,7 @@ export function DashboardTab({ meetings, people }: DashboardTabProps) {
           <table className="w-full min-w-[800px] text-sm border-collapse">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left p-2">
+                <th className="text-left p-2 sticky left-0 z-10 bg-background">
                   <button className="group flex items-center gap-1 font-medium hover:text-foreground" onClick={() => handleSort('name')}>
                     Name <SortIcon k="name" />
                   </button>
@@ -85,7 +85,7 @@ export function DashboardTab({ meetings, people }: DashboardTabProps) {
                     className="border-b border-border hover:bg-muted/40 cursor-pointer transition-colors"
                     onClick={() => setHistoryPerson(person)}
                   >
-                    <td className="p-2 font-medium">{person.name}</td>
+                    <td className="p-2 font-medium sticky left-0 z-10 bg-background">{person.name}</td>
                     {STAT_COLS.map(col => {
                       const val = col.key === 'mic' ? stat.mic1 + stat.mic2 : (stat[col.key] as number)
                       return (
