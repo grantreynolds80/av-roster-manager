@@ -37,6 +37,7 @@ export function getUnavailabilityState(person: Person): 'active' | 'upcoming' | 
 }
 
 export function isPersonCurrentlyUnavailable(person: Person, onDate?: string): boolean {
+  if (person.suspended) return true
   if (person.availability_status === 'Available') return false
   const from = person.unavailable_from ? startOfDay(parseISO(person.unavailable_from)) : null
   const until = person.unavailable_until ? startOfDay(parseISO(person.unavailable_until)) : null

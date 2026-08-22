@@ -22,6 +22,7 @@ export function PersonEditModal({ open, person, onSave, onClose }: PersonEditMod
       id: crypto.randomUUID(),
       name: '',
       platform: false, mic1: false, mic2: false, audio: false, video: false, backup: false, vc: false,
+      suspended: false,
       availability_status: 'Available',
       unavailable_from: '',
       unavailable_until: '',
@@ -35,6 +36,7 @@ export function PersonEditModal({ open, person, onSave, onClose }: PersonEditMod
       id: crypto.randomUUID(),
       name: '',
       platform: false, mic1: false, mic2: false, audio: false, video: false, backup: false, vc: false,
+      suspended: false,
       availability_status: 'Available',
       unavailable_from: '',
       unavailable_until: '',
@@ -140,6 +142,17 @@ export function PersonEditModal({ open, person, onSave, onClose }: PersonEditMod
               </div>
             </>
           )}
+          <div className="flex items-center justify-between border-t border-border pt-3">
+            <div>
+              <Label htmlFor="suspended" className="text-sm font-medium">Suspended</Label>
+              <p className="text-xs text-muted-foreground">Excluded from suggestions and auto-fill</p>
+            </div>
+            <Switch
+              id="suspended"
+              checked={!!form.suspended}
+              onCheckedChange={v => setForm(f => ({ ...f, suspended: v }))}
+            />
+          </div>
         </div>
 
         <DialogFooter>

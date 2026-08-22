@@ -11,6 +11,8 @@ export interface Person {
   video: boolean
   backup: boolean
   vc: boolean
+  // Suspension (separate from date-range availability)
+  suspended?: boolean
   // Availability
   availability_status: AvailabilityStatus
   unavailable_from?: string // ISO date string

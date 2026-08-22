@@ -95,13 +95,18 @@ export function PeopleTab({ people, meetings, onUpdatePeople, onUpdateMeetings }
           return (
             <div
               key={person.id}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-muted/50 transition-colors group"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-muted/50 transition-colors group ${person.suspended ? 'opacity-50' : ''}`}
             >
               <button
                 className="flex-1 min-w-0 text-left flex items-center gap-3 flex-wrap"
                 onClick={() => setHistoryPerson(person)}
               >
                 <span className="font-medium text-sm">{person.name}</span>
+                {person.suspended && (
+                  <span className="shrink-0 text-xs px-1.5 py-0.5 rounded font-medium bg-muted text-muted-foreground border border-border">
+                    Suspended
+                  </span>
+                )}
 
                 {(unavailState === 'active' || unavailState === 'upcoming') && (
                   <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded font-medium ${AVAILABILITY_COLORS[person.availability_status]}`}>
