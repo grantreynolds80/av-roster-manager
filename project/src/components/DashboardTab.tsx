@@ -4,7 +4,7 @@ import type { Meeting, Person } from '../types'
 import { computeStats } from '../lib/utils-roster'
 import { AssignmentHistoryModal } from './AssignmentHistoryModal'
 
-type SortKey = 'name' | 'platform' | 'mic' | 'audio' | 'video' | 'backup' | 'vc' | 'total' | 'noShows' | 'rate' | 'recentRate'
+type SortKey = 'name' | 'platform' | 'mic' | 'audio' | 'video' | 'backup' | 'vc' | 'total' | 'noShows' | 'rate' | 'recentRate' | 'reliabilityScore'
 
 interface DashboardTabProps {
   meetings: Meeting[]
@@ -29,6 +29,13 @@ export function DashboardTab({ meetings, people }: DashboardTabProps) {
     if (key === 'rate') return asc ? rate(a) - rate(b) : rate(b) - rate(a)
     const recentRate = (s: typeof a) => s.recentAssignedCompleted === 0 ? -1 : s.recentFulfilled / s.recentAssignedCompleted
     if (key === 'recentRate') return asc ? recentRate(a) - recentRate(b) : recentRate(b) - recentRate(a)
+    if (key === 'reliabilityScore') {
+      const sa = a.reliabilityScore as number, sb = b.reliabilityScore as number
+      if (sa === -999 && sb === -999) return 0
+      if (sa === -999) return 1
+      if (sb === -999) return -1
+      return asc ? sa - sb : sb - sa
+    }
     const va = key === 'mic' ? a.mic1 + a.mic2 : (a[key] as number) ?? 0
     const vb = key === 'mic' ? b.mic1 + b.mic2 : (b[key] as number) ?? 0
     return asc ? va - vb : vb - va
@@ -107,6 +114,11 @@ export function DashboardTab({ meetings, people }: DashboardTabProps) {
                     8wk <SortIcon k="recentRate" />
                   </button>
                 </th>
+                <th className="text-center p-2">
+                  <button className="group flex items-center justify-center gap-1 font-medium hover:text-foreground w-full" onClick={e => handleSort('reliabilityScore', e.shiftKey)}>
+                    Score <SortIcon k="reliabilityScore" />
+                  </button>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -133,6 +145,9 @@ export function DashboardTab({ meetings, people }: DashboardTabProps) {
                     </td>
                     <td className="p-2 text-center text-muted-foreground">
                       {stat.recentAssignedCompleted === 0 ? '—' : `${Math.round((stat.recentFulfilled / stat.recentAssignedCompleted) * 100)}%`}
+                    </td>
+                    <td className="p-2 text-center font-medium">
+                      {stat.reliabilityScore === -999 ? '—' : stat.reliabilityScore}
                     </td>
                   </tr>
                 )

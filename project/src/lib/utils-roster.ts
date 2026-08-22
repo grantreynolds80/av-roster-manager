@@ -168,9 +168,10 @@ export interface PersonStats {
   total: number               // total assigned (all roles, all non-cancelled meetings)
   assignedCompletedTotal: number  // assigned in completed meetings only (rate denominator)
   fulfilledTotal: number      // times person actually appeared in a completed meeting's actuals
-  noShows: number             // assignedCompletedTotal - fulfilledTotal
+  noShows: number             // times rostered for completed meeting but didn't appear
   recentAssignedCompleted: number  // assignedCompletedTotal for last 8 weeks
   recentFulfilled: number          // fulfilledTotal for last 8 weeks
+  reliabilityScore: number  // blended rate minus no-show penalty; -999 = no data
   [key: string]: number | string
 }
 
@@ -187,7 +188,7 @@ export function computeStats(meetings: Meeting[], people: Person[]): PersonStats
       platform: 0, mic1: 0, mic2: 0, audio: 0, video: 0, backup: 0, vc: 0,
       reader: 0, entranceAttendant: 0, auditoriumAttendant: 0, total: 0,
       assignedCompletedTotal: 0, fulfilledTotal: 0,
-      noShows: 0, recentAssignedCompleted: 0, recentFulfilled: 0,
+      noShows: 0, recentAssignedCompleted: 0, recentFulfilled: 0, reliabilityScore: -999,
     })
   }
 
@@ -236,6 +237,16 @@ export function computeStats(meetings: Meeting[], people: Person[]): PersonStats
         }
       }
     }
+  }
+
+  for (const s of statsMap.values()) {
+    if ((s.assignedCompletedTotal as number) === 0) continue
+    const rate6mo = (s.fulfilledTotal as number) / (s.assignedCompletedTotal as number)
+    const rate8wk = (s.recentAssignedCompleted as number) > 0
+      ? (s.recentFulfilled as number) / (s.recentAssignedCompleted as number)
+      : null
+    const blended = rate8wk !== null ? (rate6mo + rate8wk) / 2 : rate6mo
+    s.reliabilityScore = Math.round(blended * 100 - (s.noShows as number) * 5)
   }
 
   return Array.from(statsMap.values())
