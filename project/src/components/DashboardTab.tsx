@@ -11,36 +11,59 @@ interface DashboardTabProps {
   people: Person[]
 }
 
+type SortEntry = { key: SortKey; asc: boolean }
+
 export function DashboardTab({ meetings, people }: DashboardTabProps) {
-  const [sortKey, setSortKey] = useState<SortKey>('name')
-  const [sortAsc, setSortAsc] = useState(true)
+  const [sortKeys, setSortKeys] = useState<SortEntry[]>([{ key: 'name', asc: true }])
   const [historyPerson, setHistoryPerson] = useState<Person | null>(null)
 
   const stats = useMemo(() => computeStats(meetings, people), [meetings, people])
 
-  const sortedStats = [...stats].sort((a, b) => {
-    if (sortKey === 'name') {
+  const compareBy = (key: SortKey, asc: boolean, a: (typeof stats)[0], b: (typeof stats)[0]): number => {
+    if (key === 'name') {
       const nameA = people.find(p => p.id === a.personId)?.name ?? ''
       const nameB = people.find(p => p.id === b.personId)?.name ?? ''
-      return sortAsc ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA)
+      return asc ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA)
     }
     const rate = (s: typeof a) => s.assignedCompletedTotal === 0 ? -1 : s.fulfilledTotal / s.assignedCompletedTotal
-    if (sortKey === 'rate') return sortAsc ? rate(a) - rate(b) : rate(b) - rate(a)
+    if (key === 'rate') return asc ? rate(a) - rate(b) : rate(b) - rate(a)
     const recentRate = (s: typeof a) => s.recentAssignedCompleted === 0 ? -1 : s.recentFulfilled / s.recentAssignedCompleted
-    if (sortKey === 'recentRate') return sortAsc ? recentRate(a) - recentRate(b) : recentRate(b) - recentRate(a)
-    const va = sortKey === 'mic' ? a.mic1 + a.mic2 : (a[sortKey] as number) ?? 0
-    const vb = sortKey === 'mic' ? b.mic1 + b.mic2 : (b[sortKey] as number) ?? 0
-    return sortAsc ? va - vb : vb - va
+    if (key === 'recentRate') return asc ? recentRate(a) - recentRate(b) : recentRate(b) - recentRate(a)
+    const va = key === 'mic' ? a.mic1 + a.mic2 : (a[key] as number) ?? 0
+    const vb = key === 'mic' ? b.mic1 + b.mic2 : (b[key] as number) ?? 0
+    return asc ? va - vb : vb - va
+  }
+
+  const sortedStats = [...stats].sort((a, b) => {
+    for (const { key, asc } of sortKeys) {
+      const result = compareBy(key, asc, a, b)
+      if (result !== 0) return result
+    }
+    return 0
   })
 
-  const handleSort = (key: SortKey) => {
-    if (sortKey === key) setSortAsc(a => !a)
-    else { setSortKey(key); setSortAsc(false) }
+  const handleSort = (key: SortKey, shift: boolean) => {
+    setSortKeys(prev => {
+      if (shift) {
+        const existing = prev.find(s => s.key === key)
+        if (existing) return prev.map(s => s.key === key ? { ...s, asc: !s.asc } : s)
+        return [...prev, { key, asc: false }]
+      }
+      const existing = prev[0]?.key === key && prev.length === 1
+      return [{ key, asc: existing ? !prev[0].asc : false }]
+    })
   }
 
   const SortIcon = ({ k }: { k: SortKey }) => {
-    if (sortKey !== k) return <ChevronUp className="h-3 w-3 opacity-0 group-hover:opacity-40" />
-    return sortAsc ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
+    const idx = sortKeys.findIndex(s => s.key === k)
+    if (idx === -1) return <ChevronUp className="h-3 w-3 opacity-0 group-hover:opacity-40" />
+    const { asc } = sortKeys[idx]
+    return (
+      <span className="inline-flex items-center gap-0.5">
+        {asc ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        {sortKeys.length > 1 && <span className="text-[9px] leading-none opacity-60">{idx + 1}</span>}
+      </span>
+    )
   }
 
   const STAT_COLS: Array<{ key: SortKey; label: string }> = [
@@ -63,24 +86,24 @@ export function DashboardTab({ meetings, people }: DashboardTabProps) {
             <thead>
               <tr className="border-b border-border">
                 <th className="text-left p-2 sticky left-0 z-10 bg-background">
-                  <button className="group flex items-center gap-1 font-medium hover:text-foreground" onClick={() => handleSort('name')}>
+                  <button className="group flex items-center gap-1 font-medium hover:text-foreground" onClick={e => handleSort('name', e.shiftKey)}>
                     Name <SortIcon k="name" />
                   </button>
                 </th>
                 {STAT_COLS.map(col => (
                   <th key={col.key} className="text-center p-2">
-                    <button className="group flex items-center justify-center gap-1 font-medium hover:text-foreground w-full" onClick={() => handleSort(col.key)}>
+                    <button className="group flex items-center justify-center gap-1 font-medium hover:text-foreground w-full" onClick={e => handleSort(col.key, e.shiftKey)}>
                       {col.label} <SortIcon k={col.key} />
                     </button>
                   </th>
                 ))}
                 <th className="text-center p-2">
-                  <button className="group flex items-center justify-center gap-1 font-medium hover:text-foreground w-full" onClick={() => handleSort('rate')}>
+                  <button className="group flex items-center justify-center gap-1 font-medium hover:text-foreground w-full" onClick={e => handleSort('rate', e.shiftKey)}>
                     Rate <SortIcon k="rate" />
                   </button>
                 </th>
                 <th className="text-center p-2">
-                  <button className="group flex items-center justify-center gap-1 font-medium hover:text-foreground w-full" onClick={() => handleSort('recentRate')}>
+                  <button className="group flex items-center justify-center gap-1 font-medium hover:text-foreground w-full" onClick={e => handleSort('recentRate', e.shiftKey)}>
                     8wk <SortIcon k="recentRate" />
                   </button>
                 </th>
