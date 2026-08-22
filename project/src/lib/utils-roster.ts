@@ -366,11 +366,12 @@ function nextWeekday(from: Date, targetDow: number): Date {
 }
 
 // Generate `count` meetings continuing the Wed/Sat alternation after the last existing meeting.
-// Skips any date already in the system.
+// Cancelled meetings are excluded from the anchor and date-blocking so cancelled slots can be regenerated.
 export function generateMeetings(existingMeetings: Meeting[], count: number): Meeting[] {
-  const existingDates = new Set(existingMeetings.map(m => m.date))
+  const activeMeetings = existingMeetings.filter(m => m.status !== 'Cancelled')
+  const existingDates = new Set(activeMeetings.map(m => m.date))
 
-  const sorted = [...existingMeetings].sort((a, b) => (a.date < b.date ? -1 : 1))
+  const sorted = [...activeMeetings].sort((a, b) => (a.date < b.date ? -1 : 1))
   const last = sorted[sorted.length - 1]
 
   let current: Date
