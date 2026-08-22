@@ -54,7 +54,8 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(null)
   const [cancelConfirm, setCancelConfirm] = useState<string | null>(null)
   const [showCompleted, setShowCompleted] = useState(false)
-  const [generateCount, setGenerateCount] = useState(8)
+  const [generateCountInput, setGenerateCountInput] = useState('8')
+  const generateCount = Math.max(1, Math.min(52, parseInt(generateCountInput, 10) || 8))
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const sortedMeetings = [...meetings]
@@ -308,8 +309,12 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
               type="number"
               min={1}
               max={52}
-              value={generateCount}
-              onChange={e => setGenerateCount(Math.max(1, Math.min(52, parseInt(e.target.value) || 8)))}
+              value={generateCountInput}
+              onChange={e => setGenerateCountInput(e.target.value)}
+              onBlur={e => {
+                const n = parseInt(e.target.value, 10)
+                setGenerateCountInput(String(Math.max(1, Math.min(52, isNaN(n) ? 8 : n))))
+              }}
               className="w-9 h-8 text-sm text-center border border-input rounded-md bg-background"
               title="Number of meetings to generate"
             />
