@@ -125,24 +125,8 @@ export function RosterTab({ meetings, people, cooldownDays, onUpdateMeetings }: 
   }
 
   const handleAddMeeting = () => {
-    const lastMeeting = sortedMeetings[sortedMeetings.length - 1]
-    const lastDate = lastMeeting ? new Date(lastMeeting.date) : new Date()
-    const newDate = new Date(lastDate)
-    newDate.setDate(newDate.getDate() + 7)
-    const dateStr = newDate.toISOString().split('T')[0]
-    const lastType = lastMeeting?.type ?? 'Midweek'
-    const newType = lastType === 'Weekend' ? 'Midweek' : 'Weekend'
-
-    const newMeeting: Meeting = {
-      id: crypto.randomUUID(),
-      date: dateStr,
-      type: newType,
-      status: 'Planned',
-      backupRequired: newType === 'Weekend',
-      planned: {},
-      completions: {},
-    }
-    onUpdateMeetings([...meetings, newMeeting])
+    const [newMeeting] = generateMeetings(meetings, 1)
+    if (newMeeting) onUpdateMeetings([...meetings, newMeeting])
   }
 
   const handleDeleteMeeting = () => {
