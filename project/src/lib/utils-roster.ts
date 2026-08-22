@@ -220,14 +220,15 @@ export function computeStats(meetings: Meeting[], people: Person[]): PersonStats
       for (const role of AV_ROLES) {
         if (role === 'backup' && !meeting.backupRequired) continue
         const plannedId = meeting.planned[role]
+        const actual = meeting.completions[role]?.actual
         if (plannedId && statsMap.has(plannedId)) {
           const s = statsMap.get(plannedId)!
           s.assignedCompletedTotal = (s.assignedCompletedTotal as number) + 1
           if (isRecent) s.recentAssignedCompleted = (s.recentAssignedCompleted as number) + 1
+          if (!actual || actual !== plannedId) s.noShows = (s.noShows as number) + 1
         }
-        const c = meeting.completions[role]
-        if (c && c.actual && c.actual !== '') {
-          const s = statsMap.get(c.actual)
+        if (actual && actual !== '') {
+          const s = statsMap.get(actual)
           if (s) {
             s.fulfilledTotal = (s.fulfilledTotal as number) + 1
             if (isRecent) s.recentFulfilled = (s.recentFulfilled as number) + 1
@@ -235,10 +236,6 @@ export function computeStats(meetings: Meeting[], people: Person[]): PersonStats
         }
       }
     }
-  }
-
-  for (const s of statsMap.values()) {
-    s.noShows = (s.assignedCompletedTotal as number) - (s.fulfilledTotal as number)
   }
 
   return Array.from(statsMap.values())
