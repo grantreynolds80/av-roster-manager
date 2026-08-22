@@ -209,9 +209,7 @@ export function computeStats(meetings: Meeting[], people: Person[]): PersonStats
     for (const role of NON_AV_ROLES) {
       const id = (meeting.planned as Record<string, string | undefined>)[role]
       if (id && statsMap.has(id)) {
-        const s = statsMap.get(id)!
-        s[role] = (s[role] as number) + 1
-        s.total = (s.total as number) + 1
+        statsMap.get(id)![role] = (statsMap.get(id)![role] as number) + 1
       }
     }
 
