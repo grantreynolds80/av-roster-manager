@@ -4,7 +4,7 @@ import type { Meeting, Person } from '../types'
 import { computeStats } from '../lib/utils-roster'
 import { AssignmentHistoryModal } from './AssignmentHistoryModal'
 
-type SortKey = 'name' | 'platform' | 'mic' | 'audio' | 'video' | 'backup' | 'vc' | 'total'
+type SortKey = 'name' | 'platform' | 'mic' | 'audio' | 'video' | 'backup' | 'vc' | 'total' | 'rate'
 
 interface DashboardTabProps {
   meetings: Meeting[]
@@ -24,6 +24,8 @@ export function DashboardTab({ meetings, people }: DashboardTabProps) {
       const nameB = people.find(p => p.id === b.personId)?.name ?? ''
       return sortAsc ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA)
     }
+    const rate = (s: typeof a) => s.assignedCompletedTotal === 0 ? -1 : s.fulfilledTotal / s.assignedCompletedTotal
+    if (sortKey === 'rate') return sortAsc ? rate(a) - rate(b) : rate(b) - rate(a)
     const va = sortKey === 'mic' ? a.mic1 + a.mic2 : (a[sortKey] as number) ?? 0
     const vb = sortKey === 'mic' ? b.mic1 + b.mic2 : (b[sortKey] as number) ?? 0
     return sortAsc ? va - vb : vb - va
@@ -69,7 +71,11 @@ export function DashboardTab({ meetings, people }: DashboardTabProps) {
                     </button>
                   </th>
                 ))}
-                <th className="text-center p-2 text-muted-foreground font-medium">Rate</th>
+                <th className="text-center p-2">
+                  <button className="group flex items-center justify-center gap-1 font-medium hover:text-foreground w-full" onClick={() => handleSort('rate')}>
+                    Rate <SortIcon k="rate" />
+                  </button>
+                </th>
               </tr>
             </thead>
             <tbody>
